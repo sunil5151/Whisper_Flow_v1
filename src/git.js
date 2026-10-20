@@ -4,7 +4,7 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 function run(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
 function repoRoot(cwd) {

@@ -15,4 +15,20 @@ function memoBin() {
   return path.join(__dirname, '..', 'bin', 'memo.js');
 }
 
-module.exports = { memoryDir, memoHome, memoBin };
+function sessionsDir(root) {
+  return path.join(memoryDir(root), 'sessions');
+}
+
+function stateDir(repoId) {
+  return path.join(memoHome(), 'state', repoId);
+}
+
+function logsDir() {
+  return path.join(memoHome(), 'logs');
+}
+
+function claudeSettingsPath() {
+  return process.env.MEMO_CLAUDE_SETTINGS || path.join(os.homedir(), '.claude', 'settings.json');
+}
+
+module.exports = { memoryDir, memoHome, memoBin, sessionsDir, stateDir, logsDir, claudeSettingsPath };

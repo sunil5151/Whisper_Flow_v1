@@ -75,3 +75,39 @@ test('redacts all planned GitHub token prefixes', () => {
     assert.strictEqual(res.count, 1);
   }
 });
+
+const { redactPath } = require('../src/redact');
+
+test('redacts Anthropic and OpenAI project keys', () => {
+  assert.strictEqual(redact('a sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUV b').text, 'a [REDACTED] b');
+  assert.strictEqual(redact('a sk-proj-ABCDEFGHIJKLMNOPQRSTUV b').text, 'a [REDACTED] b');
+});
+
+test('redacts connection string credentials, keeps scheme and host', () => {
+  const res = redact('DB at postgres://admin:s3cret@db.local:5432/app now');
+  assert.strictEqual(res.text, 'DB at postgres://[REDACTED]@db.local:5432/app now');
+});
+
+test('redacts .env style lines (multiline)', () => {
+  const res = redact('line\nSTRIPE_LIVE=abcd1234efgh\nSHORT=abc\n');
+  assert.strictEqual(res.text, 'line\nSTRIPE_LIVE=[REDACTED]\nSHORT=abc\n');
+});
+
+test('redacts long tokens near key/secret/token words', () => {
+  const res = redact('the session token is 0123456789abcdef0123456789abcdef01234567 ok');
+  assert.strictEqual(res.text, 'the session token is [REDACTED] ok');
+});
+
+test('redaction is idempotent', () => {
+  const once = redact('password=hunter2 TOKEN_X=abcdefghijk postgres://u:p@h/x').text;
+  assert.strictEqual(redact(once).text, once);
+});
+
+test('redactPath matches denylist', () => {
+  for (const p of ['.env', 'config/.env', '.env.local', 'certs/server.pem', 'a/b.key', 'id_rsa', 'id_rsa.pub', 'credentials-prod.json', 'secrets/a/b.txt', 'app/secrets/x']) {
+    assert.strictEqual(redactPath(p), true, p);
+  }
+  for (const p of ['src/env.js', 'README.md', 'src/keys.js', 'secrets.md', '<outside-repo>', '']) {
+    assert.strictEqual(redactPath(p), false, p);
+  }
+});

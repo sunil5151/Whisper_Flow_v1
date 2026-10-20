@@ -3,7 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const { repoRoot, hooksDir } = require('./git');
-const { memoryDir, memoBin } = require('./paths');
+const { memoryDir, memoBin, sessionsDir } = require('./paths');
+const repos = require('./repos');
 
 const MEMORY_FILES = {
   'progress.md': '# Progress\n\n(auto-written by the post-commit hook)\n',
@@ -80,6 +81,13 @@ function init() {
   report.push([appendLineIfAbsent(path.join(root, '.gitignore'), GITIGNORE_LINE), '.gitignore']);
 
   report.push([installHook(root), 'post-commit hook']);
+
+  const sDir = sessionsDir(root);
+  report.push([fs.existsSync(sDir) ? 'skipped' : 'created', '.memory/sessions/']);
+  fs.mkdirSync(sDir, { recursive: true });
+
+  const reg = repos.register(root);
+  report.push([reg.status, `repo registered (${reg.repo.id})`]);
 
   for (const [status, name] of report) {
     console.log(`${status}  ${name}`);
