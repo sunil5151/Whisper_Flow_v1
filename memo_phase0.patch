@@ -1,0 +1,399 @@
+diff --git a/.gitattributes b/.gitattributes
+index 6313b56..5d6de17 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -1 +1,4 @@
+ * text=auto eol=lf
++*.bat text eol=crlf
++*.cmd text eol=crlf
++*.ps1 text eol=crlf
+diff --git a/.gitignore b/.gitignore
+index c35a6c5..39de491 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,3 @@
+ node_modules/
+ .memory/BRIEF.md
++patches/
+diff --git a/AGENTS.md b/AGENTS.md
+index b666372..efce741 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,6 +1,18 @@
++# MEMO
++
++MEMO is a zero-dependency Node.js CLI that gives a Git repo a persistent memory for AI coding agents.
++
++## Where memory lives
++- `.memory/` (tracked): project memory — progress log, decisions, errors, next steps, and later `PROJECT_STATE.md`.
++- `~/.memo/` (per machine, never in Git): personal notes, logs, local state.
++
++## Before starting work
++- Read `.memory/PROJECT_STATE.md` if it exists. Otherwise:
+ Read .memory/BRIEF.md before starting.
++- If neither exists, run `memo brief` or read `.memory/progress.md`.
+ 
+-memo is a zero-dependency Node.js CLI that gives a git repo a memory.
+-- `bin/memo.js` is the CLI entry (init | note | hook | brief).
+-- `src/` holds the implementation (paths, git wrappers, init, note, hook, brief, redact).
+-- `.memory/` in a target repo holds progress, decisions, errors, next steps, and the generated BRIEF.md.
++## Code map
++- `bin/memo.js` — CLI entry (`init | note | hook | brief`).
++- `src/` — implementation (paths, git, init, note, hook, brief, redact).
++- `templates/post-commit` — Git hook template installed by `memo init`.
++- `test/` — `node:test` suites; run `npm test`.
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 10530cb..1ed3039 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1,50 +1,8 @@
+-# Project Rules & Conventions
+-
+-## Core Rules (Har Agent Ko Follow Karna Hai)
+-
+-### 1. Memory Bank पहले पढ़ो
+-- हर नया काम शुरू करते समय memory folder check करो
+-- MEMORY.md को देखो कि कौन से files हैं
+-- सभी relevant memory files पढ़ो
+-- फिर काम करो
+-
+-### 2. Agent के लिए Rules
+-- **Confirmation लो** risky actions के लिए (git push, delete, force operations)
+-- **Update करो** memory bank बाद में significant changes के बाद
+-- **Code quality** को priority दो - comments add मत करो (सिर्फ जरूरत हो तो)
+-- **Security पहले** - OWASP vulnerabilities check करो
+-
+-### 3. Communication
+-- **Short और concise** रहो user के साथ
+-- **Don't narrate** - सिर्फ important updates दो
+-- **One sentence** per update
+-- Result दिखाओ, think करने का chronicle मत रखो
+-
+-### 4. File Changes
+-- **Prefer Edit** नई files बनाने से
+-- **Don't add** unnecessary features/comments/abstractions
+-- **Trust internal code** - सब validation add मत करो
+-- **Review diff** before committing
+-
+-### 5. Testing
+-- **UI changes** के लिए browser में test करो
+-- **Type checking** करो
+-- **Golden path + edge cases** दोनों test करो
+-
+----
+-
+-## Project Specifics
+-
+-**Working Directory:** `C:\Users\sunil\Desktop\sunil_testing_folder\whisper_flow_hackathon`
+-
+-**Memory Location:** `C:\Users\sunil\Desktop\sunil_testing_folder\whisper_flow_hackathon\memory\`
+-
+-**Key Patterns:**
+-- Use PowerShell for commands (git, npm, docker, etc.)
+-- Use dedicated tools (Read, Edit, Glob, Grep) instead of bash when possible
+-- Check memory files first हर session में
+-
+----
+-
+-**Last Updated:** 2026-10-19
+-**Created By:** Claude Haiku 4.5
++@AGENTS.md
++
++## Working rules
++1. Ask for confirmation before risky actions: `git push`, deleting files, force operations.
++2. Keep replies short and concise; report results, not narration.
++3. Do not add unnecessary comments, features or abstractions; prefer editing existing files.
++4. Review the diff and run `npm test` before proposing a commit.
++5. Never write secrets or absolute machine paths into tracked files.
+diff --git a/docs/PHASE0_FINDINGS.md b/docs/PHASE0_FINDINGS.md
+new file mode 100644
+index 0000000..0c7a725
+--- /dev/null
++++ b/docs/PHASE0_FINDINGS.md
+@@ -0,0 +1,77 @@
++# Phase 0 Findings
++
++**Date:** YYYY-MM-DD · **Machine:** Windows __ · **Tester:** Sunil
++
++> Fill every section. Write "not tested" instead of leaving blanks. Do not paste keys, tokens or personal data.
++
++## 1. Versions
++| Tool | Version |
++|---|---|
++| `node -v` (need ≥ 20) | |
++| `git --version` | |
++| `claude --version` | |
++
++## 2. Hook payloads
++| Event | Fired (terminal) | Fired (VS Code ext.) | Notes |
++|---|---|---|---|
++| SessionStart | | | |
++| Stop | | | |
++| PreCompact | | | |
++| SessionEnd | | | |
++
++- `args` field accepted? (yes / no → shell form used):
++- Exact stdin fields seen (per event):
++- `transcript_path` location (pattern, not full personal path):
++- Sample payload file names in `~/.memo/spike/`:
++
++## 3. Transcript format
++- Line `type` values seen:
++- User text lives at:
++- Assistant text lives at:
++- `tool_use` lives at:
++- `tool_result` lives at; error flag field:
++- `uuid` / `timestamp` / `cwd` fields:
++- `/compact` behaviour (rewrites file / appends / new file):
++- Fixtures saved (redacted, ≤ 200 lines each, reviewed by hand):
++  - [ ] `test/fixtures/claude/basic.jsonl`
++  - [ ] `test/fixtures/claude/error-then-fix.jsonl`
++  - [ ] `test/fixtures/claude/compact.jsonl`
++
++## 4. Transcript retention
++- `cleanupPeriodDays` default (verified from docs):
++- Source link + date checked:
++
++## 5. Task Scheduler (non-admin PowerShell)
++| Test | Works without admin? | Notes |
++|---|---|---|
++| `/sc minute /mo 15` | | |
++| `/sc onlogon` | | |
++| Startup-folder shortcut (fallback) | | |
++
++- Hidden-window method chosen (`conhost --headless` / `wscript run-hidden.vbs` / `powershell -WindowStyle Hidden`):
++- Window flashed for others?:
++- Spike task deleted (`schtasks /delete /tn "MEMO Spike" /f`): [ ]
++
++## 6. API
++- Provider:
++- Key stored in user env var `MEMO_API_KEY` (never pasted here): [ ]
++- Data-retention / training policy link + date checked:
++
++## 7. Model choice
++| Model | Valid JSON? | Marked fix "verified" without passing test? | Price in / out per 1M | Notes |
++|---|---|---|---|---|
++| | | | | |
++| | | | | |
++
++- **Chosen model ID:**
++- Price used in `~/.memo/config.json`:
++
++## 8. Gate results
++- [ ] `npm test` green in PowerShell
++- [ ] `npm test` green in Git Bash
++- [ ] `memo init` test repo → commit from Git Bash → `progress.md` entry
++- [ ] … from PowerShell
++- [ ] … from VS Code Source Control
++
++## 9. Surprises / plan changes for P1–P4
++-
+diff --git a/package.json b/package.json
+index b195e69..11b81ac 100644
+--- a/package.json
++++ b/package.json
+@@ -1,14 +1,14 @@
+ {
+   "name": "memo",
+-  "version": "0.1.0",
++  "version": "0.2.0",
+   "license": "MIT",
+   "bin": {
+     "memo": "bin/memo.js"
+   },
+   "scripts": {
+-    "test": "node --test test/"
++    "test": "node --test"
+   },
+   "engines": {
+-    "node": ">=18"
++    "node": ">=20"
+   }
+ }
+diff --git a/scripts/spike-hook.js b/scripts/spike-hook.js
+new file mode 100644
+index 0000000..ac1674a
+--- /dev/null
++++ b/scripts/spike-hook.js
+@@ -0,0 +1,29 @@
++#!/usr/bin/env node
++'use strict';
++// P0 spike only: dump Claude Code hook stdin + transcript tail to ~/.memo/spike/.
++const fs = require('node:fs');
++const os = require('node:os');
++const path = require('node:path');
++
++const chunks = [];
++process.stdin.on('data', (c) => chunks.push(c));
++process.stdin.on('end', () => {
++  try {
++    const raw = Buffer.concat(chunks).toString('utf8');
++    const dir = path.join(process.env.MEMO_HOME || path.join(os.homedir(), '.memo'), 'spike');
++    fs.mkdirSync(dir, { recursive: true });
++    let data;
++    try { data = JSON.parse(raw); } catch (_) { data = { _raw: raw }; }
++    const event = String(data.hook_event_name || 'unknown').replace(/[^\w-]/g, '_');
++    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
++    fs.writeFileSync(path.join(dir, `${event}-${stamp}.json`), JSON.stringify(data, null, 2) + '\n', 'utf8');
++    if (data.transcript_path && fs.existsSync(data.transcript_path)) {
++      const lines = fs.readFileSync(data.transcript_path, 'utf8').split(/\r?\n/).filter(Boolean);
++      const sid = String(data.session_id || 'nosid').replace(/[^\w-]/g, '_');
++      fs.writeFileSync(path.join(dir, `transcript-${sid}.jsonl`), lines.slice(-50).join('\n') + '\n', 'utf8');
++    }
++  } catch (err) {
++    try { process.stderr.write(`spike-hook: ${err.message}\n`); } catch (_) { /* ignore */ }
++  }
++  process.exit(0);
++});
+diff --git a/src/hook.js b/src/hook.js
+index 36dcbc4..86c150b 100644
+--- a/src/hook.js
++++ b/src/hook.js
+@@ -29,6 +29,7 @@ function logHookError(error) {
+ }
+ 
+ function hook() {
++  if (process.env.MEMO_INTERNAL_COMMIT === '1') return;
+   try {
+     const root = repoRoot(process.cwd());
+     const memDir = memoryDir(root);
+diff --git a/src/init.js b/src/init.js
+index 47aebac..ebf966c 100644
+--- a/src/init.js
++++ b/src/init.js
+@@ -40,6 +40,7 @@ function hookContent() {
+   );
+   const fwd = (p) => p.replace(/\\/g, '/');
+   return template
++    .replace(/\r\n?/g, '\n')
+     .replace('{{NODE}}', fwd(process.execPath))
+     .replace('{{MEMO}}', fwd(memoBin()));
+ }
+@@ -49,7 +50,9 @@ function installHook(root) {
+   if (fs.existsSync(hookPath)) {
+     const existing = fs.readFileSync(hookPath, 'utf8');
+     if (existing.includes(HOOK_MARK)) return 'skipped';
+-    fs.appendFileSync(hookPath, '\n' + hookContent(), 'utf8');
++    const normalized = existing.replace(/\r\n?/g, '\n');
++    const sep = normalized.endsWith('\n') ? '\n' : '\n\n';
++    fs.writeFileSync(hookPath, normalized + sep + hookContent(), 'utf8');
+     return 'created';
+   }
+   fs.mkdirSync(path.dirname(hookPath), { recursive: true });
+diff --git a/src/note.js b/src/note.js
+index 99c5268..ebd6181 100644
+--- a/src/note.js
++++ b/src/note.js
+@@ -41,7 +41,13 @@ function run(argv) {
+     fs.mkdirSync(home, { recursive: true });
+     const personalPath = path.join(home, 'personal.md');
+     if (!fs.existsSync(personalPath)) fs.writeFileSync(personalPath, '# About me\n', 'utf8');
+-    fs.appendFileSync(personalPath, `- ${text}\n`, 'utf8');
++    const line = `- ${text}`;
++    const existing = fs.readFileSync(personalPath, 'utf8').split(/\r?\n/);
++    if (existing.includes(line)) {
++      console.log('Already saved');
++      return;
++    }
++    fs.appendFileSync(personalPath, `${line}\n`, 'utf8');
+     console.log('Saved → ~/.memo/personal.md');
+     if (count > 0) console.log(`⚠ ${count} secret(s) redacted`);
+     try {
+diff --git a/test/init.test.js b/test/init.test.js
+new file mode 100644
+index 0000000..f8f2b8a
+--- /dev/null
++++ b/test/init.test.js
+@@ -0,0 +1,92 @@
++'use strict';
++
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const os = require('node:os');
++const path = require('node:path');
++const { execFileSync, spawnSync } = require('node:child_process');
++
++const MEMO = path.join(__dirname, '..', 'bin', 'memo.js');
++const HAS_GIT = !spawnSync('git', ['--version'], { windowsHide: true }).error;
++
++function setup(t) {
++  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'memo-init-test-'));
++  const root = path.join(base, 'repo');
++  const home = path.join(base, 'home');
++  const gitConfig = path.join(base, 'gitconfig');
++  fs.mkdirSync(root);
++  fs.mkdirSync(home);
++  fs.writeFileSync(gitConfig, '[user]\n\tname = MEMO Test\n\temail = memo@test.invalid\n[commit]\n\tgpgsign = false\n');
++  const env = {
++    ...process.env,
++    MEMO_HOME: home,
++    GIT_CONFIG_GLOBAL: gitConfig,
++    GIT_CONFIG_NOSYSTEM: '1'
++  };
++  delete env.MEMO_INTERNAL_COMMIT;
++  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
++  const git = (args, extraEnv = {}) => execFileSync('git', args, {
++    cwd: root, encoding: 'utf8', windowsHide: true, env: { ...env, ...extraEnv }
++  });
++  const memo = (args) => execFileSync(process.execPath, [MEMO, ...args], {
++    cwd: root, encoding: 'utf8', windowsHide: true, env
++  });
++  return { root, home, git, memo };
++}
++
++function progress(root) {
++  return fs.readFileSync(path.join(root, '.memory', 'progress.md'), 'utf8');
++}
++
++function entryCount(root) {
++  return (progress(root).match(/^## .* · commit /gm) || []).length;
++}
++
++test('init installs an LF-only post-commit hook and records commits', { skip: !HAS_GIT && 'git not installed' }, (t) => {
++  const { root, git, memo } = setup(t);
++  git(['init', '-q']);
++  memo(['init']);
++
++  const hookPath = path.resolve(root, git(['rev-parse', '--git-path', 'hooks']).trim(), 'post-commit');
++  const hook = fs.readFileSync(hookPath, 'utf8');
++  assert.ok(hook.includes('# memo-hook'));
++  assert.ok(!hook.includes('\r'), 'hook must not contain CR');
++
++  fs.writeFileSync(path.join(root, 'a.txt'), 'hello\n');
++  git(['add', 'a.txt']);
++  git(['commit', '-q', '-m', 'add a']);
++  assert.equal(entryCount(root), 1);
++  assert.match(progress(root), /add a/);
++
++  git(['add', '-A', '--', '.memory']);
++  git(['commit', '-q', '-m', 'memory only', '--', '.memory']);
++  assert.equal(entryCount(root), 1, 'memory-only commit must not add an entry');
++
++  fs.writeFileSync(path.join(root, 'b.txt'), 'b\n');
++  git(['add', 'b.txt']);
++  git(['commit', '-q', '-m', 'internal'], { MEMO_INTERNAL_COMMIT: '1' });
++  assert.equal(entryCount(root), 1, 'MEMO_INTERNAL_COMMIT=1 must skip the hook');
++});
++
++test('init normalizes CRLF when appending to an existing hook', { skip: !HAS_GIT && 'git not installed' }, (t) => {
++  const { root, git, memo } = setup(t);
++  git(['init', '-q']);
++  const hookPath = path.resolve(root, git(['rev-parse', '--git-path', 'hooks']).trim(), 'post-commit');
++  fs.mkdirSync(path.dirname(hookPath), { recursive: true });
++  fs.writeFileSync(hookPath, '#!/bin/sh\r\necho existing\r\n', { mode: 0o755 });
++  memo(['init']);
++  const hook = fs.readFileSync(hookPath, 'utf8');
++  assert.ok(!hook.includes('\r'));
++  assert.ok(hook.includes('echo existing'));
++  assert.ok(hook.includes('# memo-hook'));
++});
++
++test('personal note skips exact duplicates', (t) => {
++  const { root, home, memo } = setup(t);
++  assert.match(memo(['note', '--personal', 'I prefer short replies']), /Saved/);
++  assert.match(memo(['note', '--personal', 'I prefer short replies']), /Already saved/);
++  const lines = fs.readFileSync(path.join(home, 'personal.md'), 'utf8').split('\n');
++  assert.equal(lines.filter((l) => l === '- I prefer short replies').length, 1);
++  assert.ok(root);
++});

@@ -40,6 +40,7 @@ function hookContent() {
   );
   const fwd = (p) => p.replace(/\\/g, '/');
   return template
+    .replace(/\r\n?/g, '\n')
     .replace('{{NODE}}', fwd(process.execPath))
     .replace('{{MEMO}}', fwd(memoBin()));
 }
@@ -49,7 +50,9 @@ function installHook(root) {
   if (fs.existsSync(hookPath)) {
     const existing = fs.readFileSync(hookPath, 'utf8');
     if (existing.includes(HOOK_MARK)) return 'skipped';
-    fs.appendFileSync(hookPath, '\n' + hookContent(), 'utf8');
+    const normalized = existing.replace(/\r\n?/g, '\n');
+    const sep = normalized.endsWith('\n') ? '\n' : '\n\n';
+    fs.writeFileSync(hookPath, normalized + sep + hookContent(), 'utf8');
     return 'created';
   }
   fs.mkdirSync(path.dirname(hookPath), { recursive: true });

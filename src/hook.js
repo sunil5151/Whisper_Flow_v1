@@ -29,6 +29,7 @@ function logHookError(error) {
 }
 
 function hook() {
+  if (process.env.MEMO_INTERNAL_COMMIT === '1') return;
   try {
     const root = repoRoot(process.cwd());
     const memDir = memoryDir(root);

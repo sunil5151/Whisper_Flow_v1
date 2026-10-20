@@ -41,7 +41,13 @@ function run(argv) {
     fs.mkdirSync(home, { recursive: true });
     const personalPath = path.join(home, 'personal.md');
     if (!fs.existsSync(personalPath)) fs.writeFileSync(personalPath, '# About me\n', 'utf8');
-    fs.appendFileSync(personalPath, `- ${text}\n`, 'utf8');
+    const line = `- ${text}`;
+    const existing = fs.readFileSync(personalPath, 'utf8').split(/\r?\n/);
+    if (existing.includes(line)) {
+      console.log('Already saved');
+      return;
+    }
+    fs.appendFileSync(personalPath, `${line}\n`, 'utf8');
     console.log('Saved → ~/.memo/personal.md');
     if (count > 0) console.log(`⚠ ${count} secret(s) redacted`);
     try {
