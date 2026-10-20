@@ -1,0 +1,3 @@
+#!/bin/sh
+# memo-hook
+"{{NODE}}" "{{MEMO}}" hook || true

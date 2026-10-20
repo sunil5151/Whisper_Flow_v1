@@ -1,0 +1,14 @@
+{
+  "name": "memo",
+  "version": "0.1.0",
+  "license": "MIT",
+  "bin": {
+    "memo": "bin/memo.js"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

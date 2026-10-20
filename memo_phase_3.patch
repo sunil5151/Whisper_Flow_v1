@@ -1,16 +1,3 @@
-diff --git a/bin/memo.js b/bin/memo.js
-index 1111111..2222222 100644
---- a/bin/memo.js
-+++ b/bin/memo.js
-@@ -10,6 +10,9 @@ const cmd = process.argv[2];
- try {
-   if (cmd === 'init') {
-     require('../src/init').run();
-+  } else if (cmd === 'note') {
-+    require('../src/note').run(process.argv.slice(3));
-   } else if (cmd === '--help' || cmd === '-h' || !cmd) {
-     printHelp();
-   } else {
 diff --git a/src/note.js b/src/note.js
 new file mode 100644
 index 0000000..3333333
@@ -119,7 +106,7 @@ index 0000000..3333333
 +  }
 +}
 +
-+module.exports = { run };
++module.exports = run;
 diff --git a/src/redact.js b/src/redact.js
 new file mode 100644
 index 0000000..4444444
