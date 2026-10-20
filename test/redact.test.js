@@ -63,3 +63,15 @@ test('leaves normal sentences unchanged', () => {
   assert.strictEqual(res.text, text);
   assert.strictEqual(res.count, 0);
 });
+
+test('redacts all planned GitHub token prefixes', () => {
+  for (const token of [
+    'ghp_' + 'a'.repeat(30), 'gho_' + 'a'.repeat(30),
+    'ghu_' + 'a'.repeat(30), 'ghs_' + 'a'.repeat(30),
+    'ghr_' + 'a'.repeat(30), 'github_pat_' + 'a'.repeat(30)
+  ]) {
+    const res = redact(token);
+    assert.strictEqual(res.text, '[REDACTED]', token.slice(0, 10));
+    assert.strictEqual(res.count, 1);
+  }
+});
