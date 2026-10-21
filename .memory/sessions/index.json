@@ -1,0 +1,24 @@
+[
+  {
+    "sid": "b22f1d34-2ee8-4c0f-ae9e-6905621a8f85",
+    "agent": "claude-code",
+    "date": "2026-10-21",
+    "start": "2026-10-21T21:08:21.461+05:30",
+    "end": "2026-10-21T21:24:41.260+05:30",
+    "events": 8,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "ended"
+  },
+  {
+    "sid": "46fe6c0f-d7a6-4765-8871-bb5596eb7a9b",
+    "agent": "claude-code",
+    "date": "2026-10-21",
+    "start": "2026-10-21T21:27:45.764+05:30",
+    "end": "2026-10-21T21:27:47.327+05:30",
+    "events": 2,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "ended"
+  }
+]
