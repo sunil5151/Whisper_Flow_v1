@@ -1,0 +1,8 @@
+{
+  "response": "Sure! Here is what I found:\n\n- the test failed\n- then it passed\n",
+  "usage": {
+    "input": 4200,
+    "output": 40
+  },
+  "model": "claude-haiku-5-5"
+}

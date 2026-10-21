@@ -1,0 +1,8 @@
+{
+  "response": "Still prose, sorry.",
+  "usage": {
+    "input": 4400,
+    "output": 20
+  },
+  "model": "claude-haiku-5-5"
+}

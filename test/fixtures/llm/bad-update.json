@@ -1,0 +1,32 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "An update was proposed for a record that does not exist.",
+    "items": [
+      {
+        "op": "update",
+        "id": "T-99999999",
+        "type": "task",
+        "status": "done",
+        "evidence": [
+          "e-aaaa0008"
+        ]
+      },
+      {
+        "op": "create",
+        "type": "fact",
+        "statement": "The test suite is run with npm test and reports 15 tests",
+        "status": "active",
+        "evidence": [
+          "e-aaaa0008"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4200,
+    "output": 320
+  },
+  "model": "claude-haiku-5-5"
+}

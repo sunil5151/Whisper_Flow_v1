@@ -1,0 +1,25 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "Two redaction approaches were weighed; entropy scoring was dropped in favour of a longer literal pattern.",
+    "items": [
+      {
+        "op": "create",
+        "type": "decision",
+        "statement": "Score token entropy instead of matching the sk- prefix",
+        "rationale": "considered and dropped as too slow for every captured event",
+        "status": "rejected",
+        "confidence": "medium",
+        "evidence": [
+          "e-aaaa0004"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4200,
+    "output": 320
+  },
+  "model": "claude-haiku-5-5"
+}

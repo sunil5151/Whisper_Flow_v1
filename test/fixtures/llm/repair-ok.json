@@ -1,0 +1,24 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "Second attempt returned valid JSON: the redaction pattern was widened and the suite passed.",
+    "items": [
+      {
+        "op": "create",
+        "type": "learning",
+        "statement": "The model must return JSON only; a repair call recovers from a fenced reply",
+        "status": "active",
+        "confidence": "low",
+        "evidence": [
+          "e-aaaa0004"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4400,
+    "output": 300
+  },
+  "model": "claude-haiku-5-5"
+}

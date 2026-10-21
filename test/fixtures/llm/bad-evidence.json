@@ -1,0 +1,33 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "A fix was applied to the redaction patterns.",
+    "items": [
+      {
+        "op": "create",
+        "type": "learning",
+        "statement": "Invented claim with no event behind it",
+        "status": "active",
+        "evidence": [
+          "e-deadbeef"
+        ]
+      },
+      {
+        "op": "create",
+        "type": "learning",
+        "statement": "The redact suite is the first thing to break when a key pattern changes",
+        "status": "active",
+        "confidence": "medium",
+        "evidence": [
+          "e-aaaa0003"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4200,
+    "output": 320
+  },
+  "model": "claude-haiku-5-5"
+}

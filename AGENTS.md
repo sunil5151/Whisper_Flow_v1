@@ -12,7 +12,9 @@ Read .memory/BRIEF.md before starting.
 - If neither exists, run `memo brief` or read `.memory/progress.md`.
 
 ## Code map
-- `bin/memo.js` — CLI entry (`init | note | hook | brief`).
-- `src/` — implementation (paths, git, init, note, hook, brief, redact).
+- `bin/memo.js` — CLI entry (`init | note | hook | brief | setup claude | capture | config | process`).
+- `src/` — implementation (paths, git, init, note, hook, brief, redact, config, usage).
+- `src/capture/`, `src/store/` — Claude Code capture and the session/record files.
+- `src/llm/`, `src/extract/` — provider clients and `memo process` extraction (see `docs/PHASE2_API_EXTRACTION.md`).
 - `templates/post-commit` — Git hook template installed by `memo init`.
 - `test/` — `node:test` suites; run `npm test`.

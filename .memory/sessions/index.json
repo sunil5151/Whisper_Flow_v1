@@ -20,5 +20,16 @@
     "processedThrough": 0,
     "summary": "",
     "status": "ended"
+  },
+  {
+    "sid": "a6dd228a-7495-4835-b49d-dd3a86e00c47",
+    "agent": "claude-code",
+    "date": "2026-10-21",
+    "start": "2026-10-21T21:41:47.532+05:30",
+    "end": "2026-10-21T22:04:26.372+05:30",
+    "events": 148,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "ended"
   }
 ]

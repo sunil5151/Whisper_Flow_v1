@@ -9,6 +9,10 @@ memo setup claude                 add MEMO capture hooks to ~/.claude/settings.j
      [--dry-run] [--remove] [--shell-form]
 memo capture                      (internal) Claude Code hook entry, reads hook JSON on stdin
 memo capture --sweep              catch up all registered repos from stored cursors
+memo config                       print ~/.memo/config.json (no secrets)
+memo config set <key> <value>     change one setting
+memo process                      extract records from new captured events
+     [--repo <path>] [--dry-run] [--retry-failed]
 memo hook                         (internal) called by git post-commit
 `;
 
@@ -39,6 +43,29 @@ async function main(argv) {
       // Hook path: never print errors, always exit 0.
       await require('../src/capture/capture.js').command(argv.slice(3));
       process.exit(0);
+      break;
+    case 'config': {
+      const config = require('../src/config.js');
+      if (argv[3] === 'set') {
+        if (!argv[4] || argv[5] === undefined) {
+          process.stderr.write('usage: memo config set <key> <value>\n');
+          process.exitCode = 1;
+          return;
+        }
+        const { changed } = config.set(argv[4], argv.slice(5).join(' '));
+        process.stdout.write((changed ? 'set' : 'unchanged') + '  ' + argv[4] + '\n');
+        return;
+      }
+      if (argv[3]) {
+        process.stderr.write('usage: memo config [set <key> <value>]\n');
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(config.describe(config.ensure()));
+      break;
+    }
+    case 'process':
+      await require('../src/extract/process.js').command(argv.slice(3));
       break;
     case '--help':
     case '-h':

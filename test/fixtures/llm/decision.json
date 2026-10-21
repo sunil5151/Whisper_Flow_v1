@@ -1,0 +1,28 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "The redact test failed because the sk- pattern was too short. The pattern in src/redact.js was widened to 20 characters and the suite passed afterwards.",
+    "items": [
+      {
+        "op": "create",
+        "type": "decision",
+        "statement": "Require at least 20 characters after sk- in the API-key redaction pattern",
+        "rationale": "the 16-character form matched ordinary identifiers and failed the redact test",
+        "status": "active",
+        "confidence": "high",
+        "evidence": [
+          "e-aaaa0004"
+        ],
+        "files": [
+          "src/redact.js"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4200,
+    "output": 320
+  },
+  "model": "claude-haiku-5-5"
+}

@@ -1,0 +1,28 @@
+{
+  "response": {
+    "schema": 1,
+    "session_summary": "npm test failed on the redact suite, the pattern was corrected, and a rerun reported 15 passing tests.",
+    "items": [
+      {
+        "op": "create",
+        "type": "error",
+        "statement": "npm test failed: redact suite reported 1 failing test for the sk- key pattern",
+        "status": "verified",
+        "confidence": "high",
+        "evidence": [
+          "e-aaaa0003",
+          "e-aaaa0008"
+        ],
+        "files": [
+          "src/redact.js"
+        ]
+      }
+    ],
+    "gaps": []
+  },
+  "usage": {
+    "input": 4200,
+    "output": 320
+  },
+  "model": "claude-haiku-5-5"
+}
