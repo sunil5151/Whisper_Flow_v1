@@ -4,7 +4,10 @@
 const HELP = `memo init                         set up memory in this repo (also registers it for capture)
 memo note -t decision "text"      log a decision (also: error, next)
 memo note --personal "text"       save a fact about you (~/.memo)
-memo brief                        regenerate .memory/BRIEF.md
+memo report                       regenerate .memory/PROJECT_STATE.md and TASKS.md (alias: brief)
+memo context                      print the compact project state given to new agent sessions
+memo commit [--repo <path>]       commit only .memory/ (never other files, never push)
+memo migrate                      import old decisions.md/errors.md/next.md into records
 memo setup claude                 add MEMO capture hooks to ~/.claude/settings.json
      [--dry-run] [--remove] [--shell-form]
 memo capture                      (internal) Claude Code hook entry, reads hook JSON on stdin
@@ -12,7 +15,7 @@ memo capture --sweep              catch up all registered repos from stored curs
 memo config                       print ~/.memo/config.json (no secrets)
 memo config set <key> <value>     change one setting
 memo process                      extract records from new captured events
-     [--repo <path>] [--dry-run] [--retry-failed]
+     [--repo <path>] [--dry-run] [--retry-failed] [--commit]
 memo hook                         (internal) called by git post-commit
 `;
 
@@ -28,8 +31,18 @@ async function main(argv) {
     case 'hook':
       require('../src/hook.js')();
       break;
+    case 'report':
     case 'brief':
       require('../src/brief.js').command();
+      break;
+    case 'context':
+      require('../src/context.js').command();
+      break;
+    case 'commit':
+      require('../src/gitops/memory-commit.js').command(argv.slice(3));
+      break;
+    case 'migrate':
+      require('../src/migrate.js').command();
       break;
     case 'setup':
       if (argv[3] !== 'claude') {

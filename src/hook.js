@@ -5,7 +5,6 @@ const path = require('node:path');
 const { repoRoot, lastCommit, changedFiles } = require('./git');
 const { memoryDir, memoHome } = require('./paths');
 const { redact } = require('./redact');
-const { buildBrief } = require('./brief');
 
 function timestamp() {
   const d = new Date();
@@ -46,12 +45,6 @@ function hook() {
       : 'Files: (merge or empty commit)';
     const entry = `\n## ${timestamp()} · commit ${commit.hash}\n${subject}\n${fileSummary}\n`;
     fs.appendFileSync(path.join(memDir, 'progress.md'), entry, 'utf8');
-
-    try {
-      fs.writeFileSync(path.join(memDir, 'BRIEF.md'), buildBrief(root), 'utf8');
-    } catch (error) {
-      logHookError(error);
-    }
   } catch (error) {
     logHookError(error);
   }

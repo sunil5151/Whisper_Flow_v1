@@ -1,0 +1,98 @@
+'use strict';
+
+// `memo commit` — commit only .memory/ (plan §3 #14, P3). Never touches other paths.
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { repoRoot } = require('../git');
+const config = require('../config');
+const { log } = require('../log');
+const { localDate } = require('../util');
+
+const BUSY_MARKERS = ['index.lock', 'MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD'];
+
+function git(root, args, env) {
+  return execFileSync('git', args, {
+    cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    env: env ? { ...process.env, ...env } : process.env
+  }).trim();
+}
+
+function gitDir(root) {
+  return path.resolve(root, git(root, ['rev-parse', '--git-dir']));
+}
+
+function identityMissing(root) {
+  for (const key of ['user.name', 'user.email']) {
+    try { if (!git(root, ['config', key])) return true; } catch (_) { return true; }
+  }
+  return false;
+}
+
+// Session ids touched by the staged .memory diff.
+function describe(files) {
+  const sids = new Set();
+  for (const f of files) {
+    const m = /^\.memory\/sessions\/\d{4}\/\d{2}\/\d{2}\/([^/]+)\.(jsonl|md)$/.exec(f);
+    if (m) sids.add(m[1]);
+  }
+  return { sids: [...sids].sort() };
+}
+
+function countRecordLines(root) {
+  // Added lines in record files of the staged diff = record changes.
+  const out = git(root, ['diff', '--cached', '--numstat', '--', '.memory/records']);
+  return out ? out.split('\n').reduce((n, l) => n + (Number(l.split('\t')[0]) || 0), 0) : 0;
+}
+
+function message(root, files) {
+  const { sids } = describe(files);
+  const m = countRecordLines(root);
+  let msg = `memo: archive ${sids.length} session(s), ${m} record change(s) — ${localDate()}`;
+  if (sids.length === 1) msg += ` (${sids[0].slice(0, 8)})`;
+  return msg;
+}
+
+/**
+ * @returns {{status: 'committed'|'no_changes'|'disabled'|'git_busy'|'no_identity', hash?, message?}}
+ */
+function commitMemory(root, { cfg = config.load() } = {}) {
+  if (cfg.autoCommit === false) return { status: 'disabled' };
+  const gd = gitDir(root);
+  const busy = BUSY_MARKERS.find((m) => fs.existsSync(path.join(gd, m)));
+  if (busy) {
+    log('commit', { root: path.basename(root), status: 'git_busy', marker: busy });
+    return { status: 'git_busy', marker: busy };
+  }
+  if (!git(root, ['status', '--porcelain', '--', '.memory'])) return { status: 'no_changes' };
+  if (identityMissing(root)) {
+    log('commit', { root: path.basename(root), status: 'no_identity' });
+    return { status: 'no_identity' };
+  }
+  git(root, ['add', '-A', '--', '.memory']);
+  const files = git(root, ['diff', '--cached', '--name-only', '--', '.memory']).split('\n').filter(Boolean);
+  if (files.length === 0) return { status: 'no_changes' };
+  const msg = message(root, files);
+  git(root, ['commit', '--no-verify', '--only', '-q', '-m', msg, '--', '.memory'], { MEMO_INTERNAL_COMMIT: '1' });
+  const hash = git(root, ['rev-parse', '--short', 'HEAD']);
+  log('commit', { root: path.basename(root), status: 'committed', hash, files: files.length });
+  return { status: 'committed', hash, message: msg, files: files.length };
+}
+
+function command(argv = []) {
+  const flag = argv.indexOf('--repo');
+  const root = repoRoot(flag !== -1 && argv[flag + 1] ? path.resolve(argv[flag + 1]) : process.cwd());
+  const res = commitMemory(root);
+  if (res.status === 'committed') console.log(`committed ${res.hash}  ${res.message}`);
+  else if (res.status === 'no_changes') console.log('no changes in .memory/');
+  else if (res.status === 'disabled') console.log('autoCommit is false — nothing committed');
+  else if (res.status === 'git_busy') console.log(`git is busy (${res.marker}) — try again later`);
+  else if (res.status === 'no_identity') {
+    console.error('git user.name/user.email not set — MEMO will not set them for you');
+    process.exitCode = 1;
+  }
+  return res;
+}
+
+module.exports = { commitMemory, command, describe, BUSY_MARKERS };
