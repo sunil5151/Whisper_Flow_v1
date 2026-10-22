@@ -343,6 +343,12 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
     }, 0);
   }
 
+  if (!dryRun && result.jobs > 0) {
+    try { require('../brief').report(root); } catch (err) {
+      log('process', { repo: repo.id, status: 'report_error', error: err.message });
+    }
+  }
+
   if (dryRun) result.status = 'dry_run';
   else if (result.status === 'ok' && result.jobs === 0) {
     // Events were pending but nothing ran: parked jobs, not an empty queue.
@@ -406,6 +412,7 @@ function targetRepos(repoArg) {
 async function command(argv = []) {
   const dryRun = argv.includes('--dry-run');
   const retryFailed = argv.includes('--retry-failed');
+  const commit = argv.includes('--commit');
   const repoFlag = argv.indexOf('--repo');
   const repoArg = repoFlag !== -1 ? argv[repoFlag + 1] : null;
   if (repoFlag !== -1 && !repoArg) throw new Error('usage: memo process --repo <path>');
@@ -437,6 +444,10 @@ async function command(argv = []) {
       if (!dryRun) callsLeft = Math.max(0, callsLeft - result.calls);
       out.push(result);
       process.stdout.write(reportLines(result, cfg, dryRun).join('\n') + '\n');
+      if (commit && !dryRun) {
+        const res = require('../gitops/memory-commit').commitMemory(repo.root, { cfg });
+        process.stdout.write('  commit: ' + res.status + (res.hash ? ' ' + res.hash : '') + '\n');
+      }
     } catch (err) {
       const result = emptyResult(repo, 'error');
       result.errors.push({ error: err && err.message ? err.message : String(err) });

@@ -7,14 +7,15 @@ MEMO is a zero-dependency Node.js CLI that gives a Git repo a persistent memory 
 - `~/.memo/` (per machine, never in Git): personal notes, logs, local state.
 
 ## Before starting work
-- Read `.memory/PROJECT_STATE.md` if it exists. Otherwise:
-Read .memory/BRIEF.md before starting.
-- If neither exists, run `memo brief` or read `.memory/progress.md`.
+- Read `.memory/PROJECT_STATE.md` if it exists (`memo report` regenerates it).
+- If it does not exist, read `.memory/progress.md`.
 
 ## Code map
-- `bin/memo.js` — CLI entry (`init | note | hook | brief | setup claude | capture | config | process`).
+- `bin/memo.js` — CLI entry (`init | note | hook | report | context | commit | migrate | setup claude | capture | config | process`).
 - `src/` — implementation (paths, git, init, note, hook, brief, redact, config, usage).
 - `src/capture/`, `src/store/` — Claude Code capture and the session/record files.
 - `src/llm/`, `src/extract/` — provider clients and `memo process` extraction (see `docs/PHASE2_API_EXTRACTION.md`).
-- `templates/post-commit` — Git hook template installed by `memo init`.
+- `src/report/`, `src/context.js` — `PROJECT_STATE.md`, `TASKS.md`, and the SessionStart context.
+- `src/gitops/memory-commit.js`, `src/migrate.js` — `.memory/`-only commits and legacy-note import.
+- `templates/` — post-commit hook, AGENTS block, CLAUDE.md and `.memory/README.md` written by `memo init`.
 - `test/` — `node:test` suites; run `npm test`.

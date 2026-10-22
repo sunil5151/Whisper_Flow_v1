@@ -264,6 +264,17 @@ async function hookEntry() {
     source: data.source || data.reason,
     lockWaitMs: event === 'SessionEnd' ? 800 : 1500
   });
+  if (event === 'SessionStart') printContext(root);
+}
+
+// SessionStart stdout is added to Claude's context. fs.writeSync: the caller exits right after.
+function printContext(root) {
+  try {
+    const text = require('../context').buildContext(root);
+    if (text) fs.writeSync(1, text);
+  } catch (err) {
+    log('capture', { event: 'SessionStart', status: 'context_error', error: err.message });
+  }
 }
 
 // CLI: always resolves, never throws.
