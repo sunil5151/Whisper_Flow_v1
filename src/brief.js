@@ -85,6 +85,18 @@ function buildBrief(root) {
   return text;
 }
 
+// Render PROJECT_STATE.md and TASKS.md from records. Returns {state, tasks} = changed flags.
+function report(root) {
+  const stateReport = require('./report/state');
+  const tasksReport = require('./report/tasks');
+  const loaded = stateReport.loadState(root);
+  return {
+    state: stateReport.writeState(root, { state: loaded }),
+    tasks: tasksReport.writeTasks(root, { loaded })
+  };
+}
+
+// `memo report` (and its alias `memo brief`).
 function command() {
   let root;
   try {
@@ -94,15 +106,14 @@ function command() {
     process.exit(1);
   }
 
-  const memDir = memoryDir(root);
-  if (!fs.existsSync(memDir)) {
+  if (!fs.existsSync(memoryDir(root))) {
     console.error('Error: Run "memo init" first');
     process.exit(1);
   }
 
-  const content = buildBrief(root);
-  fs.writeFileSync(path.join(memDir, 'BRIEF.md'), content, 'utf8');
-  console.log(`BRIEF.md written (${content.split('\n').length - 1} lines)`);
+  const res = report(root);
+  console.log(`${res.state ? 'written' : 'unchanged'}  .memory/PROJECT_STATE.md`);
+  console.log(`${res.tasks ? 'written' : 'unchanged'}  .memory/TASKS.md`);
 }
 
-module.exports = { buildBrief, command };
+module.exports = { buildBrief, parseEntries, report, command };

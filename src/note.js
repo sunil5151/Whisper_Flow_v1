@@ -5,18 +5,12 @@ const path = require('node:path');
 const { repoRoot } = require('./git');
 const { memoryDir, memoHome } = require('./paths');
 const { redact } = require('./redact');
-const { buildBrief } = require('./brief');
+const { report } = require('./brief');
+const records = require('./store/records');
+const { isoLocal } = require('./util');
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function getLocalTimestamp() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function refreshBrief(root) {
-  const memDir = memoryDir(root);
-  if (!fs.existsSync(memDir)) return;
-  fs.writeFileSync(path.join(memDir, 'BRIEF.md'), buildBrief(root), 'utf8');
-}
+// note type → record type and initial status
+const NOTE_TYPES = { decision: ['decision', 'active'], error: ['error', 'observed'], next: ['task', 'open'] };
 
 function run(argv) {
   let type = null;
@@ -50,14 +44,10 @@ function run(argv) {
     fs.appendFileSync(personalPath, `${line}\n`, 'utf8');
     console.log('Saved → ~/.memo/personal.md');
     if (count > 0) console.log(`⚠ ${count} secret(s) redacted`);
-    try {
-      const root = repoRoot(process.cwd());
-      refreshBrief(root);
-    } catch (_) { /* Personal notes are valid outside a Git repository. */ }
     return;
   }
 
-  const validTypes = ['decision', 'error', 'next'];
+  const validTypes = Object.keys(NOTE_TYPES);
   if (!type || !validTypes.includes(type) || !rawText) {
     console.error('Error: usage: memo note -t <decision|error|next> <text...>');
     console.error(`Valid types: ${validTypes.join(', ')}`);
@@ -80,16 +70,18 @@ function run(argv) {
   }
 
   const { text, count } = redact(rawText);
-  if (type === 'decision' || type === 'error') {
-    const filename = `${type}s.md`;
-    fs.appendFileSync(path.join(memDir, filename), `\n## ${getLocalTimestamp()} · ${type}\n${text}\n`, 'utf8');
-    console.log(`Saved → .memory/${filename}`);
-  } else {
-    fs.appendFileSync(path.join(memDir, 'next.md'), `- [ ] ${text}\n`, 'utf8');
-    console.log('Saved → .memory/next.md');
+  const [recType, status] = NOTE_TYPES[type];
+  const id = records.makeId(recType, text, 'manual');
+  if (records.byId(root).has(id)) {
+    console.log(`Already saved (${id})`);
+    return;
   }
+  const line = { op: 'create', id, type: recType, ts: isoLocal(), statement: text, status, evidence: [], source: 'manual' };
+  if (recType === 'task') Object.assign(line, { title: text, priority: 'unranked' });
+  records.append(root, [line]);
+  console.log(`Saved → .memory/records/${records.typeInfo(recType).file} (${id})`);
   if (count > 0) console.log(`⚠ ${count} secret(s) redacted`);
-  refreshBrief(root);
+  report(root);
 }
 
 module.exports = run;
