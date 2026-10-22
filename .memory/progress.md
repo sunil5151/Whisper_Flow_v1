@@ -37,3 +37,7 @@ Files: .gitattributes (+1 -0), .gitignore (+3 -0), .specstory/history/2026-10-22
 ## 2026-10-22 17:38 · commit ed84e09
 MEMO V1: one-step Windows installer, encrypted key, Groq default, quota-aware processing
 Files: .gitignore (+8 -1), bin/memo.js (+66 -28), package.json (+1 -1), scripts/try-extract.js (+10 -4), scripts/windows/install_memo.bat (+3 -90), scripts/windows/register-task.ps1 (+39 -15), scripts/windows/run-hidden.vbs (+7 -5), scripts/windows/uninstall_memo.bat (+3 -36), setup_memo.bat (+236 -0), src/config.js (+70 -14), src/cycle.js (+22 -8), src/extract/process.js (+119 -51), src/extract/schema.js (+44 -0), src/gitops/memory-commit.js (+15 -0), src/init.js (+31 -0), +19 more
+
+## 2026-10-22 17:46 · commit 5b095fa
+s011
+Files: .specstory/history/2026-10-22_11-20-23Z.md (+23 -0), .specstory/history/2026-10-22_11-23-31Z-pasted-content-id-71a6.md (+12050 -0), .specstory/history/2026-10-22_11-23-31Z.md (+43 -0)

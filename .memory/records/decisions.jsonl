@@ -1,0 +1,1 @@
+{"op":"create","id":"D-3acf3223","type":"decision","ts":"2026-10-22T18:06:40.630+05:30","job":"j-475c0099f5","evidence":["e-52034802"],"status":"active","statement":"Provider selected Groq for live testing.","rationale":"Decision made after user answered AskUserQuestion.","confidence":"medium","sessions":["db682f7b-f104-40ac-8743-c1af32770dde"],"source":"llm"}
