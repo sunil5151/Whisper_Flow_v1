@@ -5,7 +5,7 @@
 //
 // Script comes from MEMO_MOCK_LLM (comma-separated steps, one per complete() call) or
 // setScript([...]). A step is either a fixture name under MEMO_MOCK_LLM_DIR or one of:
-//   429 | 500 | timeout | auth | quota | bad_request | empty
+//   429 | 500 | timeout | auth | quota | bad_request | rate_limited | too_large | invalid_output | empty
 // A fixture file is {"response": <object|string>, "usage": {input, output}, "model": "..."}.
 // The last step repeats if more calls are made than the script has steps.
 
@@ -19,7 +19,11 @@ const FAILURES = {
   timeout: () => new ProviderError('mock request timed out', { kind: 'retryable', status: null, retryAfterMs: 0 }),
   auth: () => new ProviderError('mock 401 invalid key', { kind: 'auth', status: 401 }),
   quota: () => new ProviderError('mock credit balance too low', { kind: 'quota', status: 400 }),
-  bad_request: () => new ProviderError('mock 400 bad request', { kind: 'bad_request', status: 400 })
+  bad_request: () => new ProviderError('mock 400 bad request', { kind: 'bad_request', status: 400 }),
+  // e.g. Groq tokens-per-day: "Please try again in 7m12s"
+  rate_limited: () => new ProviderError('mock 429 rate limit reached on tokens per day', { kind: 'rate_limited', status: 429, retryAfterMs: 432000 }),
+  too_large: () => Object.assign(new ProviderError('mock 413 request too large', { kind: 'too_large', status: 413 }), { limit: 2000 }),
+  invalid_output: () => new ProviderError('mock 400 json_validate_failed', { kind: 'invalid_output', status: 400 })
 };
 
 let script = null;
@@ -80,7 +84,8 @@ function create(cfg, opts = {}) {
             text: JSON.stringify({ schema: 1, session_summary: '', items: [], gaps: [] }),
             usage: { input: Math.ceil((system.length + user.length) / 4), output: 20 },
             model: 'mock',
-            requestId: 'mock-' + index
+            requestId: 'mock-' + index,
+            mock: true
           };
         }
         const fixture = loadFixture(step);
@@ -91,7 +96,8 @@ function create(cfg, opts = {}) {
             output: fixture.usage.output || Math.ceil(fixture.text.length / 4)
           },
           model: fixture.model,
-          requestId: 'mock-' + index
+          requestId: 'mock-' + index,
+          mock: true
         };
       }, { backoff: [0, 0, 0], sleep: () => {}, ...opts });
     }

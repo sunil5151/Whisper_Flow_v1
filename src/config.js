@@ -6,9 +6,13 @@ const path = require('node:path');
 const { memoHome } = require('./paths');
 const { readJson, writeJsonAtomic } = require('./util');
 const { DEFAULT_DENY_PATHS } = require('./redact');
+const secrets = require('./secrets');
 
-// USD per 1M tokens, standard tier (plan §10.1, prices checked 20 Oct 2026).
+// USD per 1M tokens, standard tier. Groq: console.groq.com/docs/models, checked 22 Oct 2026;
+// the others: plan §10.1, checked 20 Oct 2026. Costs shown by MEMO are always estimates.
 const PRICES = {
+  'openai/gpt-oss-20b': { inPerM: 0.075, outPerM: 0.30 },
+  'openai/gpt-oss-120b': { inPerM: 0.15, outPerM: 0.60 },
   'claude-haiku-5-5': { inPerM: 0.10, outPerM: 0.50 },
   'claude-sonnet-5-5': { inPerM: 2, outPerM: 10 },
   'claude-opus-5-5': { inPerM: 4, outPerM: 20 },
@@ -17,25 +21,43 @@ const PRICES = {
   'gpt-6-astra': { inPerM: 10, outPerM: 50 }
 };
 
-const PROVIDERS = ['anthropic', 'openai', 'mock'];
+const PROVIDERS = ['groq', 'anthropic', 'openai', 'mock'];
+
+// What `memo install --provider <p>` starts from. Groq is the V1 default: low cost, free tier.
+const PRESETS = {
+  groq: { model: 'openai/gpt-oss-20b', keyUrl: 'https://console.groq.com/keys', label: 'Groq (default, free tier available)' },
+  anthropic: { model: 'claude-haiku-5-5', keyUrl: 'https://console.anthropic.com/settings/keys', label: 'Anthropic' },
+  openai: { model: 'gpt-6-luna', keyUrl: 'https://platform.openai.com/api-keys', label: 'OpenAI, or any OpenAI-compatible endpoint (set baseUrl)' },
+  mock: { model: 'mock', keyUrl: null, label: 'Mock (offline fixtures, never a real API call)' }
+};
 
 // Used when the env var named by config.apiKeyEnv is empty.
-const KEY_ENV_FALLBACK = { anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+const KEY_ENV_FALLBACK = { groq: 'GROQ_API_KEY', anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+
+const RESPONSE_FORMATS = ['auto', 'json_schema', 'json_object', 'none'];
 
 const DEFAULTS = {
   v: 1,
-  provider: 'anthropic',
-  // Cheapest tier per §3 #6. docs/PHASE0_FINDINGS.md §7 (model choice) is still a template.
-  model: 'claude-haiku-5-5',
+  provider: 'groq',
+  model: PRESETS.groq.model,
   consolidationModel: null,
   apiKeyEnv: 'MEMO_API_KEY',
-  // OpenAI-compatible endpoint root (Gemini, Groq, OpenRouter, Ollama, …); null = api.openai.com.
+  // OpenAI-compatible endpoint root (Gemini, OpenRouter, Ollama, …); null = the provider's own.
   baseUrl: null,
+  // auto: strict json_schema where the provider supports it, else JSON mode, else plain text.
+  responseFormat: 'auto',
+  // Groq gpt-oss models only. Reasoning tokens are billed as output, so keep it low. null = omit.
+  reasoningEffort: 'low',
   apiEnabled: true,
   paused: false,
   intervalMinutes: 15,
-  maxInputTokensPerCall: 12000,
+  // Input + output of one call stays under an 8K tokens-per-minute limit. Lowered further,
+  // per run, when the provider reports a smaller limit in its rate-limit headers.
+  maxInputTokensPerCall: 4500,
+  maxOutputTokens: 3000,
   maxCallsPerCycle: 6,
+  // Your own cap on provider-reported tokens per local day, all repos together; 0 = no cap.
+  dailyTokenBudget: 0,
   monthlyBudgetUsd: 5,
   summaryLanguage: 'en',
   prices: PRICES,
@@ -47,7 +69,9 @@ const DEFAULTS = {
 const NUMERIC = {
   intervalMinutes: { min: 1, max: 1440 },
   maxInputTokensPerCall: { min: 500, max: 200000 },
+  maxOutputTokens: { min: 256, max: 32000 },
   maxCallsPerCycle: { min: 1, max: 100 },
+  dailyTokenBudget: { min: 0, max: 1e9 },
   monthlyBudgetUsd: { min: 0, max: 10000 }
 };
 
@@ -69,7 +93,16 @@ function isPrice(p) {
 function sanitize(cfg) {
   const out = { ...defaults(), ...(cfg && typeof cfg === 'object' ? cfg : {}) };
   out.v = 1;
+  // Older installs reached Groq as provider "openai" plus a Groq baseUrl.
+  if (out.provider === 'openai' && typeof out.baseUrl === 'string' && /^https:\/\/api\.groq\.com\//.test(out.baseUrl)) {
+    out.provider = 'groq';
+    out.baseUrl = null;
+  }
   if (!PROVIDERS.includes(out.provider)) out.provider = DEFAULTS.provider;
+  if (!RESPONSE_FORMATS.includes(out.responseFormat)) out.responseFormat = DEFAULTS.responseFormat;
+  if (out.reasoningEffort !== null && !['low', 'medium', 'high'].includes(out.reasoningEffort)) {
+    out.reasoningEffort = DEFAULTS.reasoningEffort;
+  }
   if (typeof out.model !== 'string' || !out.model.trim()) out.model = DEFAULTS.model;
   if (out.consolidationModel !== null && (typeof out.consolidationModel !== 'string' || !out.consolidationModel.trim())) {
     out.consolidationModel = null;
@@ -161,11 +194,18 @@ function set(key, raw) {
   if (key === 'provider' && !PROVIDERS.includes(value)) {
     throw new Error('provider must be one of: ' + PROVIDERS.join(', '));
   }
+  if (key === 'responseFormat' && !RESPONSE_FORMATS.includes(value)) {
+    throw new Error('responseFormat must be one of: ' + RESPONSE_FORMATS.join(', '));
+  }
   if (NUMERIC[key]) {
     const { min, max } = NUMERIC[key];
     if (!(value >= min && value <= max)) throw new Error(key + ' must be between ' + min + ' and ' + max);
   }
   const before = JSON.stringify(cfg[key]);
+  // Switching provider while still on the old provider's default model moves to the new default.
+  if (key === 'provider' && value !== cfg.provider && PRESETS[cfg.provider] && cfg.model === PRESETS[cfg.provider].model) {
+    cfg.model = PRESETS[value].model;
+  }
   cfg[key] = value;
   const clean = sanitize(cfg);
   if (JSON.stringify(clean[key]) !== JSON.stringify(value)) {
@@ -188,9 +228,22 @@ function keyEnvName(cfg) {
   return cfg.apiKeyEnv;
 }
 
+// Where the key comes from, without decrypting it: env | stored | none | mock.
+function keySource(cfg) {
+  const env = keyEnvName(cfg);
+  if (process.env[env] && String(process.env[env]).trim()) return { source: 'env', detail: 'env ' + env };
+  if (cfg.provider === 'mock') return { source: 'mock', detail: 'mock provider needs no key' };
+  if (secrets.has(cfg.provider)) {
+    return { source: 'stored', detail: (secrets.backend() === 'dpapi' ? 'Windows DPAPI' : 'file') + ' store (' + cfg.provider + ')' };
+  }
+  return { source: 'none', detail: 'no key for ' + cfg.provider };
+}
+
 function apiKey(cfg) {
   const value = process.env[keyEnvName(cfg)];
-  return value ? String(value).trim() : '';
+  if (value && String(value).trim()) return String(value).trim();
+  if (cfg.provider === 'mock') return '';
+  return secrets.read(cfg.provider);
 }
 
 // The key is only ever shown like this; never printed or logged in full.
@@ -201,10 +254,13 @@ function maskKey(key) {
 // Printable config, secrets excluded.
 function describe(cfg) {
   const lines = ['config  ' + configPath()];
-  const keys = ['provider', 'model', 'baseUrl', 'consolidationModel', 'apiEnabled', 'paused', 'intervalMinutes',
-    'maxInputTokensPerCall', 'maxCallsPerCycle', 'monthlyBudgetUsd', 'summaryLanguage', 'autoCommit'];
+  const keys = ['provider', 'model', 'baseUrl', 'responseFormat', 'reasoningEffort', 'consolidationModel', 'apiEnabled',
+    'paused', 'intervalMinutes', 'maxInputTokensPerCall', 'maxOutputTokens', 'maxCallsPerCycle', 'dailyTokenBudget',
+    'monthlyBudgetUsd', 'summaryLanguage', 'autoCommit'];
   for (const key of keys) lines.push(key.padEnd(22) + ' ' + JSON.stringify(cfg[key]));
-  lines.push('apiKeyEnv'.padEnd(22) + ' ' + keyEnvName(cfg) + ' → ' + maskKey(apiKey(cfg)));
+  const src = keySource(cfg);
+  lines.push('api key'.padEnd(22) + ' ' + (src.source === 'none' ? 'not set — run `memo key set`'
+    : src.source === 'env' ? src.detail + ' → ' + maskKey(apiKey(cfg)) : src.detail));
   const price = priceFor(cfg, cfg.model);
   lines.push('price (per 1M)'.padEnd(22) + ' ' +
     (price ? 'in $' + price.inPerM + ' / out $' + price.outPerM
@@ -214,7 +270,7 @@ function describe(cfg) {
 }
 
 module.exports = {
-  DEFAULTS, PRICES, PROVIDERS, KEY_ENV_FALLBACK, SETTABLE,
+  DEFAULTS, PRICES, PROVIDERS, PRESETS, KEY_ENV_FALLBACK, RESPONSE_FORMATS, SETTABLE,
   configPath, defaults, sanitize, load, save, ensure, set,
-  priceFor, keyEnvName, apiKey, maskKey, describe
+  priceFor, keyEnvName, keySource, apiKey, maskKey, describe
 };

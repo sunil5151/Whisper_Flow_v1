@@ -9,6 +9,7 @@ const { repoRoot } = require('../git');
 const config = require('../config');
 const { log } = require('../log');
 const { localDate } = require('../util');
+const { findSecrets } = require('../redact');
 
 const BUSY_MARKERS = ['index.lock', 'MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD'];
 
@@ -73,6 +74,15 @@ function commitMemory(root, { cfg = config.load(), message: custom = null } = {}
   git(root, ['add', '-A', '--', '.memory']);
   const files = git(root, ['diff', '--cached', '--name-only', '--', '.memory']).split('\n').filter(Boolean);
   if (files.length === 0) return { status: 'no_changes' };
+  // Last line of defence: redaction runs at capture, but never commit a recognisable credential.
+  const added = git(root, ['diff', '--cached', '-U0', '--no-color', '--', '.memory']).split('\n')
+    .filter((l) => l.startsWith('+') && !l.startsWith('+++')).join('\n');
+  const found = findSecrets(added);
+  if (found.length > 0) {
+    git(root, ['reset', '-q', '--', '.memory']);
+    log('commit', { root: path.basename(root), status: 'secret_blocked', formats: found });
+    return { status: 'secret_blocked', formats: found };
+  }
   const msg = custom || message(root, files);
   git(root, ['commit', '--no-verify', '--only', '-q', '-m', msg, '--', '.memory'], { MEMO_INTERNAL_COMMIT: '1' });
   const hash = git(root, ['rev-parse', '--short', 'HEAD']);
@@ -88,6 +98,11 @@ function command(argv = []) {
   else if (res.status === 'no_changes') console.log('no changes in .memory/');
   else if (res.status === 'disabled') console.log('autoCommit is false — nothing committed');
   else if (res.status === 'git_busy') console.log(`git is busy (${res.marker}) — try again later`);
+  else if (res.status === 'secret_blocked') {
+    console.error('NOT committed: .memory/ changes contain what looks like a credential (' + res.formats.join(', ') +
+      '). Find it with `git diff -- .memory`, remove it (memo clear --session <sid>), and rotate that key.');
+    process.exitCode = 1;
+  }
   else if (res.status === 'no_identity') {
     console.error('git user.name/user.email not set — MEMO will not set them for you');
     process.exitCode = 1;

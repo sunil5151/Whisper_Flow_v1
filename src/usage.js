@@ -1,6 +1,8 @@
 'use strict';
 
-// Token/cost accounting: ~/.memo/logs/usage.jsonl + monthly budget check (§6.4, §10.4).
+// Token/cost accounting: ~/.memo/logs/usage.jsonl + budget checks (§6.4, §10.4).
+// Tokens are what the provider reported; cost is always an estimate from config.prices.
+// Mock calls are logged with mock:true and never counted as real usage.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -27,11 +29,13 @@ function usageFile() {
   return path.join(logsDir(), 'usage.jsonl');
 }
 
-// One line per provider call: {ts, repoId, job, model, in, out, costEst}.
+// One line per successful provider call: {ts, repoId, job, provider, model, in, out, costEst, mock?}.
 function record(entry) {
   log('usage', {
     repoId: entry.repoId || null,
     job: entry.job || null,
+    provider: entry.provider || null,
+    ...(entry.mock ? { mock: true } : {}),
     model: entry.model || null,
     in: Number(entry.in) || 0,
     out: Number(entry.out) || 0,
@@ -39,12 +43,13 @@ function record(entry) {
   });
 }
 
-function readLines() {
+function readLog(name) {
   const out = [];
   // log.js rotates to <file>.1 at 1 MB; read it too so a month total is not cut short.
-  for (const file of [usageFile() + '.1', usageFile()]) {
+  const file = path.join(logsDir(), name + '.jsonl');
+  for (const f of [file + '.1', file]) {
     let raw;
-    try { raw = fs.readFileSync(file, 'utf8'); } catch (_) { continue; }
+    try { raw = fs.readFileSync(f, 'utf8'); } catch (_) { continue; }
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       try { out.push(JSON.parse(line)); } catch (_) { /* torn line ignored */ }
@@ -53,32 +58,75 @@ function readLines() {
   return out;
 }
 
+function isMock(line) {
+  return line.mock === true || line.provider === 'mock' || line.model === 'mock';
+}
+
 function currentMonth() {
   return isoLocal().slice(0, 7);
 }
 
-// Totals for a local YYYY-MM month. costKnown is false if any call had no price.
-function monthTotals(month = currentMonth()) {
-  const totals = { month, calls: 0, input: 0, output: 0, costUsd: 0, costKnown: true };
-  for (const line of readLines()) {
-    if (typeof line.ts !== 'string' || line.ts.slice(0, 7) !== month) continue;
+function today() {
+  return isoLocal().slice(0, 10);
+}
+
+// Real calls whose local timestamp starts with prefix (YYYY-MM or YYYY-MM-DD).
+// costKnown is false if any call had no price.
+function totals(prefix) {
+  const out = { period: prefix, calls: 0, input: 0, output: 0, costUsd: 0, costKnown: true, mockCalls: 0, lastTs: null };
+  for (const line of readLog('usage')) {
+    if (typeof line.ts !== 'string' || !line.ts.startsWith(prefix)) continue;
     if (line.model === undefined && line.in === undefined) continue;
-    totals.calls++;
-    totals.input += Number(line.in) || 0;
-    totals.output += Number(line.out) || 0;
-    if (line.costEst === null || line.costEst === undefined) totals.costKnown = false;
-    else totals.costUsd += Number(line.costEst) || 0;
+    if (isMock(line)) { out.mockCalls++; continue; }
+    out.calls++;
+    out.lastTs = line.ts;
+    out.input += Number(line.in) || 0;
+    out.output += Number(line.out) || 0;
+    if (line.costEst === null || line.costEst === undefined) out.costKnown = false;
+    else out.costUsd += Number(line.costEst) || 0;
   }
-  totals.costUsd = Math.round(totals.costUsd * 1e6) / 1e6;
-  return totals;
+  out.costUsd = Math.round(out.costUsd * 1e6) / 1e6;
+  return out;
 }
 
-// Plan §P2 step 1: stop before a call when this month already reached the budget.
+function monthTotals(month = currentMonth()) {
+  const t = totals(month);
+  return { month, ...t };
+}
+
+function dayTotals(day = today()) {
+  return totals(day);
+}
+
+// Plan §P2 step 1: stop before a call when this month's estimated cost, or today's
+// provider-reported tokens, already reached the configured budget.
 function budgetState(cfg, month = currentMonth()) {
-  const totals = monthTotals(month);
+  const t = monthTotals(month);
   const limit = Number(cfg.monthlyBudgetUsd);
-  const reached = Number.isFinite(limit) && limit >= 0 && totals.costUsd >= limit;
-  return { reached, limit, ...totals };
+  const monthly = Number.isFinite(limit) && limit >= 0 && t.costUsd >= limit;
+  const daily = Number(cfg.dailyTokenBudget) || 0;
+  const day = daily > 0 ? dayTotals() : null;
+  const dailyReached = Boolean(day && day.input + day.output >= daily);
+  let reason = null;
+  if (monthly) reason = 'monthly budget of ' + limit + ' USD reached (estimated cost)';
+  else if (dailyReached) reason = 'daily token budget of ' + daily + ' reached';
+  return { reached: monthly || dailyReached, reason, limit, dailyTokenBudget: daily, dayTokens: day ? day.input + day.output : null, ...t };
 }
 
-module.exports = { estimateTokens, costOf, record, usageFile, monthTotals, budgetState, currentMonth };
+// Failed provider attempts in provider.jsonl whose timestamp starts with prefix, by kind.
+function failures(prefix = currentMonth()) {
+  const out = { total: 0, byKind: {}, last: null };
+  for (const line of readLog('provider')) {
+    if (typeof line.ts !== 'string' || !line.ts.startsWith(prefix) || line.provider === 'mock') continue;
+    const kind = line.kind || 'unknown';
+    out.total++;
+    out.byKind[kind] = (out.byKind[kind] || 0) + 1;
+    out.last = line;
+  }
+  return out;
+}
+
+module.exports = {
+  estimateTokens, costOf, record, usageFile, readLog, totals, monthTotals, dayTotals, failures,
+  budgetState, currentMonth, today
+};

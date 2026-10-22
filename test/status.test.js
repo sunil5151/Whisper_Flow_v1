@@ -78,8 +78,10 @@ test('status renders from the logs in at most 20 lines', (t) => {
   assert.match(lines[0], /Paused: no/);
   assert.match(text, /Last cycle .* ok/);
   assert.match(text, /last failure 2026-10-26 22:15 api_failed: timeout/);
-  assert.match(text, /This month: 2 calls · 0\.20M in \/ 0\.01M out · ≈ \$0\.03 of \$5 budget/);
-  assert.match(text, /my-repo {2,}sessions 2 · unprocessed 3 · last commit abc1234/);
+  assert.match(text, /This month: 2 calls · 0\.20M in \/ 0\.01M out · ≈ \$0\.03 estimated of \$5 budget · 0 failed attempts/);
+  assert.match(text, /Processing: last success never · pending 3 events/);
+  assert.match(text, /Capture: Claude Code hooks NOT installed/);
+  assert.match(text, /my-repo {2,}sessions 2 · unprocessed 3 · records 0 · last commit abc1234/);
   assert.match(text, /state behind/);
   assert.match(text, /Logs: /);
 });

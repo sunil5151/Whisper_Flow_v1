@@ -16,19 +16,26 @@ const repos = require('../repos');
 const config = require('../config');
 const { acquire } = require('../lock');
 const { log } = require('../log');
-const { sha1, readJson, writeJsonAtomic, isoLocal } = require('../util');
+const { sha1, readJson, writeJsonAtomic, isoLocal, sleepMs } = require('../util');
 const usage = require('../usage');
 const sessions = require('../store/sessions');
 const records = require('../store/records');
 const prompt = require('./prompt');
+const schema = require('./schema');
 const { validate } = require('./validate');
 const provider = require('../llm/provider');
+const limits = require('../llm/limits');
 const sessionSummary = require('../report/session-summary');
 
-const MAX_OUTPUT_TOKENS = 2000;
+// Fallback when config has no maxOutputTokens (older config files).
+const MAX_OUTPUT_TOKENS = 3000;
 // Output size used only for the --dry-run cost estimate (plan §10.2: ~1.5k per call).
 const OUTPUT_ESTIMATE = 1500;
 const MAX_ATTEMPTS = 5;
+// A parked job (failed_retryable / failed_permanent) is retried on its own after this long.
+const PARK_RETRY_MS = 6 * 60 * 60 * 1000;
+// These say nothing about the job itself: keep its attempt count, pause all calls instead.
+const ENVIRONMENT_KINDS = ['auth', 'quota', 'rate_limited'];
 
 function jobsPath(repoId) {
   return path.join(stateDir(repoId), 'jobs.json');
@@ -65,11 +72,11 @@ function readSessionEvents(root, date, sid) {
 }
 
 // Validated items → record op-log lines (§6.2).
-function toRecordLines(items, { sid, job, existing }) {
+function toRecordLines(items, { sid, job, existing, source = 'llm' }) {
   const lines = [];
   const seen = new Set();
   for (const item of items) {
-    const line = { ...item, ts: isoLocal(), job, sessions: [sid], source: 'llm' };
+    const line = { ...item, ts: isoLocal(), job, sessions: [sid], source };
     if (item.op === 'create') {
       const id = records.makeId(item.type, item.statement || item.title, item.evidence[0]);
       // Step 8: an id that already exists becomes an update, not a duplicate create.
@@ -105,15 +112,30 @@ function emptyResult(repo, status) {
     summaries: 0,
     leftover: 0,
     dropped: 0,
+    mock: false,
+    stop: null,
     errors: []
   };
 }
 
+function parkedTooLong(jobState, now = Date.now()) {
+  const ts = Date.parse(jobState && jobState.ts);
+  return Number.isFinite(ts) && now - ts >= PARK_RETRY_MS;
+}
+
+function outputTokens(cfg) {
+  const n = Number(cfg.maxOutputTokens);
+  return Number.isFinite(n) && n > 0 ? n : MAX_OUTPUT_TOKENS;
+}
+
 /**
  * Process one registered repo.
- * @param {object} args {repo, cfg, dryRun, retryFailed, maxCalls, providerImpl}
+ * @param {object} args {repo, cfg, dryRun, retryFailed, maxCalls, providerImpl, deadline, sleep}
+ *   deadline  epoch ms after which no new call is started (the scheduled run has a time limit)
  */
-async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, maxCalls = null, providerImpl = null }) {
+async function processRepo({
+  repo, cfg, dryRun = false, retryFailed = false, maxCalls = null, providerImpl = null, deadline = null, sleep = sleepMs
+}) {
   const root = repo.root;
   const result = emptyResult(repo, 'ok');
   const callCap = maxCalls === null ? Number(cfg.maxCallsPerCycle) : maxCalls;
@@ -141,6 +163,14 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
     if (budget.reached) {
       result.status = 'budget_reached';
       result.leftover = result.newEvents;
+      result.errors.push({ error: budget.reason + ' — events are kept and processed later' });
+      return result;
+    }
+    const cool = cfg.provider === 'mock' ? null : limits.cooldown();
+    if (cool) {
+      result.status = 'cooldown';
+      result.leftover = result.newEvents;
+      result.errors.push({ error: 'API paused until ' + cool.until.slice(11, 16) + ' (' + cool.kind + ': ' + cool.reason + ') — events are kept' });
       return result;
     }
   }
@@ -152,8 +182,32 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
   }
 
   const llm = dryRun ? null : (providerImpl || provider.create(cfg));
+  const llmName = llm ? llm.name : cfg.provider;
+  const isMock = llmName === 'mock';
+  result.mock = isMock;
+  const maxOut = outputTokens(cfg);
+  const inputCap = limits.inputCap(cfg, llmName, cfg.model);
   const jobs = loadJobs(repo.id);
   let stop = null;
+
+  // One provider call, accounted in usage.jsonl (mock calls are flagged, never counted as real).
+  const call = async (built, user, job) => {
+    const response = await llm.complete({
+      system: built.system, user, maxTokens: maxOut, json: true, schema: { name: schema.NAME, schema: schema.EXTRACTION }
+    });
+    result.calls++;
+    const mock = isMock || response.mock === true;
+    const cost = mock ? 0 : usage.costOf(cfg, response.model, response.usage.input, response.usage.output);
+    usage.record({
+      repoId: repo.id, job, provider: llmName, mock, model: response.model,
+      in: response.usage.input, out: response.usage.output, costEst: cost
+    });
+    result.in += response.usage.input;
+    result.out += response.usage.output;
+    if (cost === null) result.costKnown = false;
+    else result.costEst += cost;
+    return response;
+  };
 
   try {
     for (const entry of pendingSessions) {
@@ -170,7 +224,7 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
 
       const openRecords = records.openRecords(root, 60);
       const batches = prompt.batchEvents(pending, {
-        maxInputTokens: Number(cfg.maxInputTokensPerCall),
+        maxInputTokens: inputCap,
         openRecords,
         repo: path.basename(root)
       });
@@ -182,12 +236,11 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
         const job = jobId(sid, from, to);
         const jobState = jobs[job] || { sid, from, to, status: 'pending', attempts: 0, lastError: null, ts: isoLocal() };
 
-        if (jobState.status === 'failed_permanent' && !retryFailed) {
-          result.errors.push({ sid, job, error: 'job failed_permanent (use --retry-failed)' });
-          break;
-        }
-        if (jobState.status === 'failed_retryable' && !retryFailed) {
-          result.errors.push({ sid, job, error: 'job failed_retryable (use --retry-failed)' });
+        // Parked jobs wait PARK_RETRY_MS, then are retried on their own (or now with --retry-failed).
+        if ((jobState.status === 'failed_permanent' || jobState.status === 'failed_retryable') &&
+            !retryFailed && !parkedTooLong(jobState)) {
+          result.errors.push({ sid, job, error: 'job ' + jobState.status + ' (' + (jobState.lastError || 'no detail') +
+            '); retried automatically after 6 h, or now with `memo process --retry-failed`' });
           break;
         }
 
@@ -220,59 +273,63 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
           stop = 'max_calls';
           break;
         }
-        if (usage.budgetState(cfg).reached) {
+        const budgetNow = usage.budgetState(cfg);
+        if (budgetNow.reached) {
           result.status = 'budget_reached';
+          result.errors.push({ error: budgetNow.reason + ' — events are kept and processed later' });
           stop = 'budget_reached';
           break;
+        }
+        if (deadline !== null && Date.now() >= deadline) {
+          result.status = 'time_budget';
+          stop = 'time_budget';
+          break;
+        }
+        // Pace against the limits the provider reported on its last reply.
+        if (!isMock) {
+          const g = limits.gate(llmName, cfg.model, built.inputTokens + maxOut);
+          if (g.waitMs) sleep(g.waitMs);
+          else if (g.deferMs) {
+            const c = limits.setCooldown('rate_limited', g.deferMs, g.reason);
+            result.status = 'rate_limited';
+            result.errors.push({ error: g.reason + ' — next try after ' + c.until.slice(11, 16) + ', events are kept' });
+            stop = 'rate_limited';
+            break;
+          }
         }
 
         const existing = records.byId(root);
         let response;
         let checked;
         try {
-          response = await llm.complete({ system: built.system, user: built.user, maxTokens: MAX_OUTPUT_TOKENS });
-          result.calls++;
-          const cost = usage.costOf(cfg, response.model, response.usage.input, response.usage.output);
-          usage.record({ repoId: repo.id, job, model: response.model, in: response.usage.input, out: response.usage.output, costEst: cost });
-          result.in += response.usage.input;
-          result.out += response.usage.output;
-          if (cost === null) result.costKnown = false;
-          else result.costEst += cost;
-
+          response = await call(built, built.user, job);
           checked = validate(response.text, { eventIds: built.eventIds, events: built.events, existing });
 
           // Step 7: one repair call, then the job is permanently failed.
           if (!checked.ok) {
-            const repair = await llm.complete({
-              system: built.system,
-              user: prompt.repairUser(built.user, checked.error),
-              maxTokens: MAX_OUTPUT_TOKENS
-            });
-            result.calls++;
-            const repairCost = usage.costOf(cfg, repair.model, repair.usage.input, repair.usage.output);
-            usage.record({ repoId: repo.id, job, model: repair.model, in: repair.usage.input, out: repair.usage.output, costEst: repairCost });
-            result.in += repair.usage.input;
-            result.out += repair.usage.output;
-            if (repairCost === null) result.costKnown = false;
-            else result.costEst += repairCost;
-            checked = validate(repair.text, { eventIds: built.eventIds, events: built.events, existing });
-            response = repair;
+            response = await call(built, prompt.repairUser(built.user, checked.error), job);
+            checked = validate(response.text, { eventIds: built.eventIds, events: built.events, existing });
           }
         } catch (err) {
           const kind = err && err.kind ? err.kind : 'retryable';
-          // auth / quota are environment problems, not job problems: no attempt is counted.
-          const attempts = kind === 'auth' || kind === 'quota'
-            ? (Number(jobState.attempts) || 0)
-            : (Number(jobState.attempts) || 0) + 1;
-          const status = kind === 'auth' || kind === 'quota' ? 'pending'
-            : attempts < MAX_ATTEMPTS ? 'pending' : 'failed_retryable';
+          const environment = ENVIRONMENT_KINDS.includes(kind) || kind === 'too_large';
+          // Environment problems are not the job's fault: no attempt is counted.
+          const attempts = environment ? (Number(jobState.attempts) || 0) : (Number(jobState.attempts) || 0) + 1;
+          const status = environment || attempts < MAX_ATTEMPTS ? 'pending' : 'failed_retryable';
           jobs[job] = { ...jobState, status, attempts, lastError: kind + ': ' + (err && err.message), ts: isoLocal() };
           saveJobs(repo.id, jobs);
-          result.errors.push({ sid, job, error: kind + ': ' + (err && err.message) });
-          result.status = 'api_failed';
+          let note = '';
+          if (ENVIRONMENT_KINDS.includes(kind) && !isMock) {
+            const c = limits.setCooldown(kind, err.retryAfterMs, err.message);
+            note = ' — no API call before ' + c.until.slice(11, 16) + ', events are kept';
+          } else if (kind === 'too_large') {
+            note = ' — the next run sends smaller batches';
+          }
+          result.errors.push({ sid, job, error: kind + ': ' + (err && err.message) + note });
+          result.status = kind === 'rate_limited' || kind === 'quota' ? kind : 'api_failed';
           log('process', { repo: repo.id, sid: sid.slice(0, 8), job, status: 'api_failed', kind, attempts });
           // Nothing was written; events and processedThrough stay untouched for the next run.
-          if (kind === 'auth' || kind === 'quota') stop = kind;
+          if (ENVIRONMENT_KINDS.includes(kind)) stop = kind;
           break;
         }
 
@@ -289,7 +346,7 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
           break;
         }
 
-        const lines = toRecordLines(checked.items, { sid, job, existing });
+        const lines = toRecordLines(checked.items, { sid, job, existing, source: isMock ? 'mock' : 'llm' });
         if (lines.length > 0) {
           records.ensureDir(root);
           records.append(root, lines);
@@ -334,6 +391,7 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
   } finally {
     lock.release();
   }
+  result.stop = stop;
 
   // Exact backlog: what every session still has beyond its (possibly advanced) cursor.
   if (!dryRun) {
@@ -354,7 +412,14 @@ async function processRepo({ repo, cfg, dryRun = false, retryFailed = false, max
     // Events were pending but nothing ran: parked jobs, not an empty queue.
     result.status = result.errors.length > 0 ? 'blocked' : 'no_new_data';
   }
+  if (!dryRun && result.jobs > 0) {
+    try { writeJsonAtomic(lastOkPath(repo.id), { ts: isoLocal(), jobs: result.jobs, records: result.records, mock: isMock }); } catch (_) { /* advisory */ }
+  }
   return result;
+}
+
+function lastOkPath(repoId) {
+  return path.join(stateDir(repoId), 'last-process-ok.json');
 }
 
 function fmtUsd(value) {
@@ -369,7 +434,7 @@ function fmtNum(value) {
 
 function reportLines(result, cfg, dryRun) {
   const name = path.basename(result.root);
-  const lines = [name + '  (' + result.status + ')'];
+  const lines = [name + '  (' + result.status + ')' + (result.mock ? '  [MOCK provider: canned fixtures, no real API call]' : '')];
   if (dryRun) {
     const price = config.priceFor(cfg, cfg.model);
     const estOut = result.jobs * OUTPUT_ESTIMATE;
@@ -442,6 +507,7 @@ async function command(argv = []) {
     try {
       const result = await processRepo({ repo, cfg, dryRun, retryFailed, maxCalls: dryRun ? null : callsLeft });
       if (!dryRun) callsLeft = Math.max(0, callsLeft - result.calls);
+      if (['auth', 'quota', 'rate_limited'].includes(result.stop)) callsLeft = 0;
       out.push(result);
       process.stdout.write(reportLines(result, cfg, dryRun).join('\n') + '\n');
       if (commit && !dryRun) {
@@ -458,13 +524,15 @@ async function command(argv = []) {
   }
   if (!dryRun) {
     const month = usage.monthTotals();
-    process.stdout.write('this month: ' + month.calls + ' call(s) · ' + fmtNum(month.input) + ' in / ' +
-      fmtNum(month.output) + ' out · ≈ ' + fmtUsd(month.costUsd) + ' of $' + cfg.monthlyBudgetUsd + ' budget\n');
+    process.stdout.write('this month (real API calls): ' + month.calls + ' call(s) · ' + fmtNum(month.input) + ' in / ' +
+      fmtNum(month.output) + ' out · estimated ' + fmtUsd(month.costUsd) + ' of $' + cfg.monthlyBudgetUsd + ' budget' +
+      (month.mockCalls ? ' · ' + month.mockCalls + ' mock call(s) not counted' : '') + '\n');
   }
   return { results: out };
 }
 
 module.exports = {
   command, processRepo, jobId, jobsPath, loadJobs, saveJobs, readSessionEvents,
-  toRecordLines, reportLines, targetRepos, MAX_OUTPUT_TOKENS, OUTPUT_ESTIMATE, MAX_ATTEMPTS
+  toRecordLines, reportLines, targetRepos, lastOkPath, outputTokens,
+  MAX_OUTPUT_TOKENS, OUTPUT_ESTIMATE, MAX_ATTEMPTS, PARK_RETRY_MS
 };

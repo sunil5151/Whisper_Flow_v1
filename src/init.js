@@ -137,6 +137,37 @@ function init() {
   }
   if (hasLegacy(root)) notes.push('old notes found (.memory/decisions.md, errors.md, next.md) — run `memo migrate`');
   for (const n of notes) console.log(n);
+  readiness(root);
+}
+
+// What still stands between this repo and automatic capture + processing.
+// Missing Claude Code hooks are installed here (global, idempotent, backed up); the rest is reported.
+function readiness(root) {
+  const status = require('./status');
+  const config = require('./config');
+  let hooks = status.claudeHooks();
+  if (!hooks.ok || hooks.stale.length > 0) {
+    try {
+      require('./capture/install-claude').setupClaude([]);
+      hooks = status.claudeHooks();
+    } catch (err) {
+      console.log('warn  Claude Code hooks could not be installed: ' + err.message);
+    }
+  }
+  const cfg = config.load();
+  const key = config.keySource(cfg);
+  const task = status.taskRegistered();
+  const rows = [
+    [hooks.ok && hooks.stale.length === 0, 'capture', hooks.ok ? 'Claude Code hooks installed — sessions in this repo are captured' : 'hooks missing — run `memo setup claude`'],
+    [key.source !== 'none', 'api key', key.source !== 'none' ? key.detail : 'missing — run `memo key set` (capture still works; extraction waits)'],
+    [task.ok, 'background', task.ok ? 'scheduled task runs every ' + cfg.intervalMinutes + ' min' : task.detail]
+  ];
+  console.log('');
+  for (const [ok, name, detail] of rows) console.log((ok ? 'ready ' : 'todo  ') + name.padEnd(11) + ' ' + detail);
+  const done = rows.every(([ok]) => ok);
+  console.log(done
+    ? '\nMEMO is active in ' + path.basename(root) + '. Start Claude Code here; memory appears in .memory/ after the next cycle.'
+    : '\nMEMO is set up in ' + path.basename(root) + '. Fix the "todo" lines above (or rerun setup_memo.bat) for full automation.');
 }
 
 module.exports = init;

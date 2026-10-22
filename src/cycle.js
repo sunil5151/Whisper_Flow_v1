@@ -19,10 +19,13 @@ const memoryCommit = require('./gitops/memory-commit');
 
 const LOCK_STALE_MS = 20 * 60 * 1000;
 // Worst → best. The repo keeps the worst thing that happened to it.
-const SEVERITY = ['error', 'api_failed', 'no_identity', 'git_busy', 'budget_reached', 'capture_gap', 'ok', 'no_new_data'];
+const SEVERITY = ['error', 'secret_blocked', 'api_failed', 'quota', 'no_identity', 'git_busy', 'budget_reached', 'capture_gap', 'deferred', 'ok', 'no_new_data'];
 // Capture results that mean "data may be missing", not "nothing happened".
 const GAP_STATUSES = ['error', 'busy', 'bad_cursors', 'transcript_missing', 'no_transcript', 'transcript_rewritten'];
-const OK_CYCLE = ['ok', 'no_new_data', 'paused'];
+// deferred = the provider asked MEMO to wait (rate limit / cooldown): work is kept, nothing failed.
+const OK_CYCLE = ['ok', 'no_new_data', 'paused', 'deferred'];
+// The scheduled task is killed after 10 minutes; stop starting new API calls well before that.
+const CALL_WINDOW_MS = 7 * 60 * 1000;
 
 function lockPath() {
   return path.join(memoHome(), 'cycle.lock');
@@ -40,7 +43,7 @@ function worst(a, b) {
  * One repo: capture, process, report, commit.
  * @returns {object} the line logged to cycles.jsonl
  */
-async function runRepo(repo, cfg, { callsLeft = null, providerImpl = null } = {}) {
+async function runRepo(repo, cfg, { callsLeft = null, providerImpl = null, deadline = null } = {}) {
   const t0 = Date.now();
   const line = {
     event: 'repo', repo: path.basename(repo.root), repoId: repo.id,
@@ -56,17 +59,22 @@ async function runRepo(repo, cfg, { callsLeft = null, providerImpl = null } = {}
   if (cfg.apiEnabled === false) {
     line.apiSkipped = 'api_disabled';
   } else {
-    processed = await extract.processRepo({ repo, cfg, maxCalls: callsLeft, providerImpl });
+    processed = await extract.processRepo({ repo, cfg, maxCalls: callsLeft, providerImpl, deadline });
+    line.stop = processed.stop || undefined;
+    if (processed.mock) line.mock = true;
     line.jobs = processed.jobs;
     line.calls = processed.calls;
     line.in = processed.in;
     line.out = processed.out;
     line.costEst = processed.costEst;
     if (processed.leftover > 0) line.leftover = processed.leftover;
+    if (processed.errors.length > 0) line.note = String(processed.errors[0].error).slice(0, 240);
     // e.g. max_calls or failed_permanent: not a cycle failure, but worth seeing in the log.
     if (!['ok', 'no_new_data'].includes(processed.status)) line.processStatus = processed.status;
-    if (['api_failed', 'budget_reached', 'error'].includes(processed.status)) {
+    if (['api_failed', 'budget_reached', 'error', 'quota'].includes(processed.status)) {
       line.status = worst(line.status, processed.status);
+    } else if (['rate_limited', 'cooldown'].includes(processed.status)) {
+      line.status = worst(line.status, 'deferred');
     } else if (processed.jobs > 0) {
       line.status = worst(line.status, 'ok');
     }
@@ -87,7 +95,7 @@ async function runRepo(repo, cfg, { callsLeft = null, providerImpl = null } = {}
   if (commit.status === 'committed') {
     line.committed = commit.hash;
     line.status = worst(line.status, 'ok');
-  } else if (commit.status === 'git_busy' || commit.status === 'no_identity') {
+  } else if (['git_busy', 'no_identity', 'secret_blocked'].includes(commit.status)) {
     line.status = worst(line.status, commit.status);
   }
 
@@ -120,10 +128,11 @@ async function runCycle({ cfg = config.ensure(), providerImpl = null } = {}) {
     const list = repos.load().filter((r) => r && r.enabled !== false);
     const lines = [];
     let callsLeft = Number(cfg.maxCallsPerCycle);
+    const deadline = t0 + CALL_WINDOW_MS;
     for (const repo of list) {
       let line;
       try {
-        line = await runRepo(repo, cfg, { callsLeft, providerImpl });
+        line = await runRepo(repo, cfg, { callsLeft, providerImpl, deadline });
       } catch (err) {
         line = {
           event: 'repo', repo: path.basename(repo.root), repoId: repo.id,
@@ -132,6 +141,8 @@ async function runCycle({ cfg = config.ensure(), providerImpl = null } = {}) {
         };
       }
       callsLeft = Math.max(0, callsLeft - (Number(line.calls) || 0));
+      // A bad key or an exhausted provider affects every repo: no more calls this cycle.
+      if (['auth', 'quota', 'rate_limited'].includes(line.stop)) callsLeft = 0;
       log('cycles', line);
       lines.push(line);
     }
@@ -165,6 +176,7 @@ function writeStatus({ status, repos: lines, ms, cfg, error = null }) {
       committed: lines.filter((l) => l.committed).length
     },
     lastOk: status === 'ok' || status === 'paused' ? now : prev.lastOk || null,
+    lastProcessed: lines.some((l) => (Number(l.jobs) || 0) > 0 && !l.mock) ? now : prev.lastProcessed || null,
     lastFailed: status === 'failed'
       ? { ts: now, reason: error || (failing[0] && (failing[0].status + (failing[0].error ? ': ' + failing[0].error : ''))) || 'failed' }
       : prev.lastFailed || null,
@@ -178,7 +190,9 @@ function fmtLine(l) {
   const bits = [l.repo.padEnd(24), 'events ' + l.newEvents, 'jobs ' + l.jobs, 'calls ' + l.calls];
   if (l.committed) bits.push('commit ' + l.committed);
   bits.push(l.status);
+  if (l.leftover) bits.push('backlog ' + l.leftover);
   if (l.error) bits.push('— ' + l.error);
+  else if (l.note && l.status !== 'ok') bits.push('— ' + l.note);
   return '  ' + bits.join(' · ');
 }
 
@@ -197,4 +211,4 @@ async function command(argv = []) {
   return res;
 }
 
-module.exports = { command, runCycle, runRepo, writeStatus, statusPath, lockPath, LOCK_STALE_MS, OK_CYCLE };
+module.exports = { command, runCycle, runRepo, writeStatus, statusPath, lockPath, LOCK_STALE_MS, OK_CYCLE, CALL_WINDOW_MS };

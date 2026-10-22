@@ -14,7 +14,8 @@ const { normalize } = require('../src/capture/claude');
 const prompt = require('../src/extract/prompt');
 const { validate } = require('../src/extract/validate');
 const providerFactory = require('../src/llm/provider');
-const { MAX_OUTPUT_TOKENS } = require('../src/extract/process');
+const { outputTokens } = require('../src/extract/process');
+const schema = require('../src/extract/schema');
 const usage = require('../src/usage');
 
 function fixturePath(name) {
@@ -54,7 +55,7 @@ async function main() {
   }
   const cfg = config.load();
   if (!config.apiKey(cfg)) {
-    process.stderr.write('no API key in env ' + config.keyEnvName(cfg) + '\n');
+    process.stderr.write('no API key for ' + cfg.provider + ' — run `memo key set`\n');
     process.exit(1);
   }
 
@@ -65,11 +66,16 @@ async function main() {
 
   const llm = providerFactory.create(cfg);
   const started = Date.now();
-  const response = await llm.complete({ system: built.system, user: built.user, maxTokens: MAX_OUTPUT_TOKENS });
+  const response = await llm.complete({
+    system: built.system, user: built.user, maxTokens: outputTokens(cfg), json: true,
+    schema: { name: schema.NAME, schema: schema.EXTRACTION }
+  });
   const cost = usage.costOf(cfg, response.model, response.usage.input, response.usage.output);
   console.log('--- usage ---');
   console.log('model ' + response.model + ' · in ' + response.usage.input + ' · out ' + response.usage.output +
-    ' · cost ' + (cost === null ? 'unknown' : '$' + cost.toFixed(6)) + ' · ' + (Date.now() - started) + ' ms');
+    ' · estimated cost ' + (cost === null ? 'unknown' : '$' + cost.toFixed(6)) + ' · ' + (Date.now() - started) + ' ms' +
+    ' · format ' + (response.format || 'n/a') + ' · request ' + (response.requestId || 'n/a'));
+  if (response.limits) console.log('provider-reported limits ' + JSON.stringify(response.limits));
 
   const checked = validate(response.text, { eventIds: built.eventIds, events: built.events, existing: new Map() });
   console.log('--- validated ---');

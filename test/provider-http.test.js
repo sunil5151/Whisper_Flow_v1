@@ -8,6 +8,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+// Every log line and rate-limit state file from these tests goes to a throwaway home,
+// never to the real ~/.memo (it used to inflate the failure counts in `memo status`).
+const ISOLATED_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'memo-provider-home-'));
+process.env.MEMO_HOME = ISOLATED_HOME;
+process.on('exit', () => { try { fs.rmSync(ISOLATED_HOME, { recursive: true, force: true }); } catch (_) { /* best effort */ } });
+
 const provider = require('../src/llm/provider');
 const anthropic = require('../src/llm/anthropic');
 const openai = require('../src/llm/openai');
@@ -62,7 +68,7 @@ const ANTHROPIC_OK = {
 test('anthropic: request shape, headers and response parsing', async () => {
   const fetchImpl = fakeFetch([reply(200, ANTHROPIC_OK, { 'request-id': 'req_1' })]);
   const { impl } = opts(fetchImpl);
-  const p = anthropic.create(cfg(), impl);
+  const p = anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), impl);
   const out = await p.complete({ system: 'SYS', user: 'USER', maxTokens: 2000 });
 
   assert.equal(fetchImpl.calls.length, 1);
@@ -90,7 +96,7 @@ test('anthropic: 429 is retried honouring retry-after, then succeeds', async () 
     reply(200, ANTHROPIC_OK)
   ]);
   const { impl, slept } = opts(fetchImpl);
-  const out = await anthropic.create(cfg(), impl).complete({ system: 's', user: 'u' });
+  const out = await anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), impl).complete({ system: 's', user: 'u' });
   assert.equal(fetchImpl.calls.length, 2);
   assert.deepEqual(slept, [1000], 'retry-after seconds win over the backoff table');
   assert.equal(out.usage.input, 4321);
@@ -100,7 +106,7 @@ test('anthropic: 401 is auth and is not retried', async () => {
   const fetchImpl = fakeFetch([reply(401, { error: { message: 'invalid x-api-key' } })]);
   const { impl, slept } = opts(fetchImpl);
   await assert.rejects(
-    () => anthropic.create(cfg(), impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), impl).complete({ system: 's', user: 'u' }),
     (err) => {
       assert.equal(err.name, 'ProviderError');
       assert.equal(err.kind, 'auth');
@@ -116,7 +122,7 @@ test('anthropic: 500 is retried three times then throws retryable', async () => 
   const fetchImpl = fakeFetch([reply(500, 'upstream boom')]);
   const { impl, slept } = opts(fetchImpl);
   await assert.rejects(
-    () => anthropic.create(cfg(), impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'retryable' && err.status === 500
   );
   assert.equal(fetchImpl.calls.length, 3);
@@ -126,14 +132,14 @@ test('anthropic: 500 is retried three times then throws retryable', async () => 
 test('anthropic: 400 is bad_request, credit-balance 400 is quota', async () => {
   const bad = fakeFetch([reply(400, { error: { message: 'max_tokens too large' } })]);
   await assert.rejects(
-    () => anthropic.create(cfg(), opts(bad).impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), opts(bad).impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'bad_request'
   );
   assert.equal(bad.calls.length, 1);
 
   const quota = fakeFetch([reply(400, { error: { message: 'Your credit balance is too low to access the API' } })]);
   await assert.rejects(
-    () => anthropic.create(cfg(), opts(quota).impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), opts(quota).impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'quota'
   );
   assert.equal(quota.calls.length, 1);
@@ -142,7 +148,7 @@ test('anthropic: 400 is bad_request, credit-balance 400 is quota', async () => {
 test('anthropic: a refusal stop_reason is not treated as a usable answer', async () => {
   const fetchImpl = fakeFetch([reply(200, { ...ANTHROPIC_OK, stop_reason: 'refusal', content: [] })]);
   await assert.rejects(
-    () => anthropic.create(cfg(), opts(fetchImpl).impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), opts(fetchImpl).impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'bad_request' && /refusal/.test(err.message)
   );
 });
@@ -152,7 +158,7 @@ test('an aborted request is retryable and reports a timeout', async () => {
   const fetchImpl = fakeFetch([abort]);
   const { impl } = opts(fetchImpl);
   await assert.rejects(
-    () => anthropic.create(cfg(), impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'retryable' && /timed out|abort/i.test(err.message)
   );
   assert.equal(fetchImpl.calls.length, 3);
@@ -161,7 +167,7 @@ test('an aborted request is retryable and reports a timeout', async () => {
 test('a broken JSON envelope is retryable, not a validation problem', async () => {
   const fetchImpl = fakeFetch([reply(200, 'not json at all')]);
   await assert.rejects(
-    () => anthropic.create(cfg(), opts(fetchImpl).impl).complete({ system: 's', user: 'u' }),
+    () => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), opts(fetchImpl).impl).complete({ system: 's', user: 'u' }),
     (err) => err.kind === 'retryable' && /invalid JSON envelope/.test(err.message)
   );
 });
@@ -238,7 +244,7 @@ test('the key never reaches the provider log', async (t) => {
     fs.rmSync(home, { recursive: true, force: true });
   });
   const fetchImpl = fakeFetch([reply(401, { error: { message: 'invalid x-api-key' } })]);
-  await assert.rejects(() => anthropic.create(cfg(), opts(fetchImpl).impl).complete({ system: 's', user: 'SECRET-USER-TEXT' }));
+  await assert.rejects(() => anthropic.create(cfg({ provider: 'anthropic', model: 'claude-haiku-5-5' }), opts(fetchImpl).impl).complete({ system: 's', user: 'SECRET-USER-TEXT' }));
   const log = fs.readFileSync(path.join(home, 'logs', 'provider.jsonl'), 'utf8');
   assert.ok(!log.includes(KEY), 'api key in log');
   assert.ok(!log.includes('SECRET-USER-TEXT'), 'prompt body in log');

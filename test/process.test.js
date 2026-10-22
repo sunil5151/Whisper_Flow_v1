@@ -144,7 +144,8 @@ test('a decision is stored with evidence, job, source and a session summary', { 
   assert.match(d.id, /^D-[0-9a-f]{8}$/);
   assert.equal(d.type, 'decision');
   assert.equal(d.status, 'active');
-  assert.equal(d.source, 'llm');
+  // Records from the mock provider are labelled as such, never as real model output.
+  assert.equal(d.source, 'mock');
   assert.deepEqual(d.sessions, [SID]);
   assert.match(d.job, /^j-[0-9a-f]{10}$/);
   assert.deepEqual(d.evidence, ['e-aaaa0004']);
@@ -165,8 +166,12 @@ test('a decision is stored with evidence, job, source and a session summary', { 
   assert.equal(usage.length, 1);
   assert.equal(usage[0].model, 'claude-haiku-5-5');
   assert.equal(usage[0].in, 4200);
-  assert.ok(usage[0].costEst > 0);
-  assert.match(r.stdout, /this month: 1 call/);
+  // A mock call is logged, flagged, costs nothing and is not counted as a real call.
+  assert.equal(usage[0].mock, true);
+  assert.equal(usage[0].provider, 'mock');
+  assert.equal(usage[0].costEst, 0);
+  assert.match(r.stdout, /MOCK provider/);
+  assert.match(r.stdout, /this month \(real API calls\): 0 call\(s\).*1 mock call\(s\) not counted/);
 
   const job = Object.values(jobs(ctx.home, ctx.root))[0];
   assert.equal(job.status, 'applied');
@@ -236,7 +241,7 @@ test('malformed JSON twice → failed_permanent, nothing written, events untouch
 
   // A plain rerun refuses to burn more tokens on it; --retry-failed tries again.
   const again = ctx.memo(['process'], { MEMO_MOCK_LLM: 'decision' });
-  assert.match(again.stdout, /failed_permanent \(use --retry-failed\)/);
+  assert.match(again.stdout, /failed_permanent .*--retry-failed/);
   assert.equal(usageLines(ctx.home).length, 2);
   const retried = ctx.memo(['process', '--retry-failed'], { MEMO_MOCK_LLM: 'decision' });
   assert.equal(retried.status, 0, retried.stderr);

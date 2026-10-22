@@ -1,34 +1,47 @@
 #!/usr/bin/env node
 'use strict';
 
-const HELP = `memo init                         set up memory in this repo (also registers it for capture)
-memo note -t decision "text"      log a decision (also: error, next)
-memo note --personal "text"       save a fact about you (~/.memo)
-memo report                       regenerate .memory/PROJECT_STATE.md and TASKS.md (alias: brief)
-memo context                      print the compact project state given to new agent sessions
-memo commit [--repo <path>]       commit only .memory/ (never other files, never push)
-memo migrate                      import old decisions.md/errors.md/next.md into records
-memo setup claude                 add MEMO capture hooks to ~/.claude/settings.json
-     [--dry-run] [--remove] [--shell-form]
-memo capture                      (internal) Claude Code hook entry, reads hook JSON on stdin
-memo capture --sweep              catch up all registered repos from stored cursors
-memo config                       print ~/.memo/config.json (no secrets)
-memo config set <key> <value>     change one setting
-memo process                      extract records from new captured events
-     [--repo <path>] [--dry-run] [--retry-failed] [--commit]
-memo cycle                        one scheduled run: capture, process, report, commit
-memo status                       what MEMO did and what it cost this month
-memo doctor [--live]              check the setup; --live makes one cheap API call
-memo pause | memo resume          stop/start processing (task stays registered)
-memo install                      first-run setup: config, Claude hooks, privacy notice
-     [--provider <p>] [--model <m>] [--yes]
-memo sessions [--date YYYY-MM-DD] browse captured dates, or the sessions of one date
-memo show <sid8|sid>              one session: summary, files, records it produced
-memo tasks [--all]                open tasks in the terminal
-memo clear --session <sid> | --date <d> | --record <id> | --all-repo-data
-     [--with-derived] [--yes] [--confirm <text>]   dry run unless --yes
-memo console                      numbered menu over all of the above
-memo hook                         (internal) called by git post-commit
+const HELP = `MEMO — persistent project memory for AI coding sessions
+
+Start here
+  memo install                      one-time machine setup (setup_memo.bat runs this; rerun = repair)
+       [--provider groq|anthropic|openai|mock] [--model <id>] [--yes] [--skip-live]
+  memo init                         activate MEMO in the current Git repo
+  memo status                       is it working? capture, pending work, API calls, limits
+  memo doctor [--live]              check every piece; --live sends one tiny real request
+
+API key and provider
+  memo key set | status | remove    store the key encrypted for your Windows user (never in a repo)
+  memo key import --file <p> | --env <NAME> [--remove-source]   move an old plain-text key
+  memo config                       show settings (never the key)
+  memo config set <key> <value>     e.g. model, intervalMinutes, dailyTokenBudget, monthlyBudgetUsd
+  memo usage                        tokens, estimated cost, failures, provider-reported limits
+
+Background work
+  memo cycle                        one run now: capture sweep, extraction, reports, .memory commit
+  memo process [--repo <path>] [--dry-run] [--retry-failed] [--commit]   extraction only
+  memo schedule [status | install | remove]   the Windows scheduled task
+  memo pause | memo resume          stop/start API processing (capture keeps working)
+  memo repair                       reapply hooks and the scheduled task, keep everything else
+  memo uninstall [--remove-key]     remove task and hooks; memory data is kept
+
+Your memory
+  memo context                      the project state a new Claude Code session receives
+  memo report                       regenerate .memory/PROJECT_STATE.md and TASKS.md (alias: brief)
+  memo tasks [--all]                open tasks
+  memo sessions [--date YYYY-MM-DD] captured sessions;  memo show <sid8> for one session
+  memo note -t decision|error|next "text"   add a note by hand (--personal: ~/.memo only)
+  memo clear --session <sid> | --date <d> | --record <id> | --all-repo-data
+       [--with-derived] [--yes] [--confirm <text>]   dry run unless --yes
+  memo console                      numbered menu over the above
+  memo commit [--repo <path>]       commit only .memory/ (never other files, never push)
+  memo migrate                      import old decisions.md/errors.md/next.md into records
+
+Internal (called by hooks)
+  memo setup claude [--dry-run] [--remove]   add/remove the Claude Code hooks
+  memo capture [--sweep]            Claude Code hook entry / catch-up
+  memo hook                         git post-commit entry
+  memo --version
 `;
 
 async function main(argv) {
@@ -79,6 +92,11 @@ async function main(argv) {
         }
         const { changed } = config.set(argv[4], argv.slice(5).join(' '));
         process.stdout.write((changed ? 'set' : 'unchanged') + '  ' + argv[4] + '\n');
+        // The scheduled task carries the interval: re-register it so the change takes effect.
+        if (changed && argv[4] === 'intervalMinutes') {
+          const schedule = require('../src/schedule.js');
+          if (schedule.info().exists) process.stdout.write(schedule.install().detail + '\n');
+        }
         return;
       }
       if (argv[3]) {
@@ -112,6 +130,25 @@ async function main(argv) {
     case 'install':
       await require('../src/install.js').install(argv.slice(3));
       break;
+    case 'repair':
+      await require('../src/install.js').install(['--yes', ...argv.slice(3)]);
+      break;
+    case 'uninstall':
+      await require('../src/install.js').uninstall(argv.slice(3));
+      break;
+    case 'key':
+      await require('../src/key.js').command(argv.slice(3));
+      break;
+    case 'schedule':
+      require('../src/schedule.js').command(argv.slice(3));
+      break;
+    case 'usage':
+      require('../src/status.js').usageCommand();
+      break;
+    case '--version':
+    case '-v':
+      process.stdout.write(require('../package.json').version + '\n');
+      break;
     case 'sessions':
       require('../src/browse.js').sessionsCommand(argv.slice(3));
       break;
@@ -129,6 +166,7 @@ async function main(argv) {
       break;
     case '--help':
     case '-h':
+    case 'help':
     case undefined:
       process.stdout.write(HELP);
       break;

@@ -5,6 +5,9 @@ const PATTERNS = [
   { regex: /sk-ant-[A-Za-z0-9_-]{20,}/g },
   { regex: /sk-proj-[A-Za-z0-9_-]{20,}/g },
   { regex: /sk-[A-Za-z0-9_-]{16,}/g },
+  { regex: /gsk_[A-Za-z0-9]{20,}/g },
+  { regex: /\b[sr]k_live_[A-Za-z0-9]{16,}/g },
+  { regex: /\bhf_[A-Za-z0-9]{30,}/g },
   { regex: /gh[pousr]_[A-Za-z0-9]{20,}/g },
   { regex: /github_pat_[A-Za-z0-9_]{20,}/g },
   { regex: /AKIA[0-9A-Z]{16}/g },
@@ -42,6 +45,21 @@ function redact(text) {
   return { text: redacted, count };
 }
 
+// High-confidence credential formats only (no keyword heuristics), for the pre-commit guard.
+const SECRET_FORMATS = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /sk-ant-[A-Za-z0-9_-]{20,}/, /sk-proj-[A-Za-z0-9_-]{20,}/, /\bsk-[A-Za-z0-9]{32,}/,
+  /gsk_[A-Za-z0-9]{20,}/, /gh[pousr]_[A-Za-z0-9]{30,}/, /github_pat_[A-Za-z0-9_]{30,}/,
+  /\bAKIA[0-9A-Z]{16}\b/, /AIza[0-9A-Za-z_-]{35}/, /xox[abprs]-[A-Za-z0-9-]{20,}/,
+  /\b[sr]k_live_[A-Za-z0-9]{16,}/, /\bhf_[A-Za-z0-9]{30,}/
+];
+
+// Names of the formats found in text (never the matched value itself).
+function findSecrets(text) {
+  if (typeof text !== 'string' || !text) return [];
+  return SECRET_FORMATS.filter((re) => re.test(text)).map((re) => re.source.slice(0, 12));
+}
+
 function globToRegex(glob) {
   let re = '';
   for (let i = 0; i < glob.length; i++) {
@@ -70,4 +88,4 @@ function redactPath(relPath, denyPaths = DEFAULT_DENY_PATHS) {
   return false;
 }
 
-module.exports = { redact, redactPath, DEFAULT_DENY_PATHS };
+module.exports = { redact, redactPath, findSecrets, DEFAULT_DENY_PATHS };
