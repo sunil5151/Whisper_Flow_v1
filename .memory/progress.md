@@ -17,3 +17,7 @@ Files: P1-v1.patch (+1784 -0), bin/memo.js (+22 -6), src/capture/capture.js (+28
 ## 2026-10-21 21:29 · commit 6ae5363
 s006
 Files: .specstory/history/2026-10-21_15-38-21Z-explain-this-repo-in.md (+109 -0), .specstory/history/2026-10-21_15-38-21Z.md (+43 -0), .specstory/history/2026-10-21_15-57-45Z-reply-with-hi-just.md (+15 -0)
+
+## 2026-10-21 22:09 · commit 0fa4072
+s007
+Files: .specstory/history/2026-10-21_16-11-47Z-pasted-content-id-468b.md (+8503 -0), .specstory/history/2026-10-21_16-11-47Z.md (+43 -0), AGENTS.md (+4 -2), MEMO_IMPLEMENTATION_PLAN.md (+843 -0), bin/memo.js (+27 -0), docs/PHASE2_API_EXTRACTION.md (+126 -0), scripts/try-extract.js (+90 -0), src/config.js (+214 -0), src/extract/process.js (+459 -0), src/extract/prompt.js (+123 -0), src/extract/validate.js (+224 -0), src/llm/anthropic.js (+87 -0), src/llm/mock.js (+101 -0), src/llm/openai.js (+87 -0), src/llm/provider.js (+120 -0), +19 more
