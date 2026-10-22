@@ -66,4 +66,58 @@ function appendEvents(file, events) {
   }
 }
 
-module.exports = { validSid, indexPath, loadIndex, saveIndex, sessionFile, readExisting, appendEvents };
+// Session summary file next to the .jsonl.
+function summaryFile(root, date, sid) {
+  return sessionFile(root, date, sid).replace(/\.jsonl$/, '.md');
+}
+
+// Live (non-deleted) index entries.
+function liveEntries(root) {
+  return loadIndex(root).filter((e) => e && validSid(e.sid) && !e.deletedAt);
+}
+
+// Resolve a full sid or an unambiguous prefix (e.g. the 8 chars shown in reports).
+// Returns {entry} | {error}.
+function resolveSid(root, wanted) {
+  if (typeof wanted !== 'string' || !validSid(wanted)) return { error: 'invalid session id: ' + wanted };
+  const live = liveEntries(root);
+  const exact = live.find((e) => e.sid === wanted);
+  if (exact) return { entry: exact };
+  const hits = live.filter((e) => e.sid.startsWith(wanted));
+  if (hits.length === 1) return { entry: hits[0] };
+  if (hits.length === 0) return { error: 'no session matches ' + wanted };
+  return { error: wanted + ' matches ' + hits.length + ' sessions — use the full id' };
+}
+
+// Replace an entry with a tombstone so capture never re-imports the session (P5).
+function tombstone(root, sid, when) {
+  const index = loadIndex(root);
+  const i = index.findIndex((e) => e && e.sid === sid);
+  const mark = { sid, agent: i >= 0 ? index[i].agent : 'claude-code', date: i >= 0 ? index[i].date : '', deletedAt: when };
+  if (i >= 0) index[i] = mark; else index.push(mark);
+  saveIndex(root, index);
+  return mark;
+}
+
+// Event ids stored in one session file.
+function readEventIds(file) {
+  const ids = [];
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); } catch (err) {
+    if (err.code === 'ENOENT') return ids;
+    throw err;
+  }
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      if (e && typeof e.id === 'string') ids.push(e.id);
+    } catch (_) { /* torn line ignored */ }
+  }
+  return ids;
+}
+
+module.exports = {
+  validSid, indexPath, loadIndex, saveIndex, sessionFile, summaryFile, readExisting, appendEvents,
+  liveEntries, resolveSid, tombstone, readEventIds
+};

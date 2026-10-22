@@ -195,6 +195,23 @@ test('openai: chat/completions with json_object response_format', async () => {
   assert.equal(out.model, 'gpt-6-luna');
 });
 
+test('openai: baseUrl points the same wire format at a compatible host', async () => {
+  const fetchImpl = fakeFetch([reply(200, {
+    id: 'chatcmpl-2',
+    model: 'gemini-2.5-flash-lite',
+    choices: [{ message: { role: 'assistant', content: '{"schema":1,"items":[]}' } }],
+    usage: { prompt_tokens: 100, completion_tokens: 10 }
+  })]);
+  const { impl } = opts(fetchImpl);
+  await openai.create(cfg({
+    provider: 'openai',
+    model: 'gemini-2.5-flash-lite',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/'
+  }), impl).complete({ system: 's', user: 'u' });
+  assert.equal(fetchImpl.calls[0].url,
+    'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+});
+
 test('openai: insufficient_quota is quota, 429 retries', async () => {
   const q = fakeFetch([reply(429, { error: { message: 'You exceeded your current quota', type: 'insufficient_quota' } })]);
   await assert.rejects(

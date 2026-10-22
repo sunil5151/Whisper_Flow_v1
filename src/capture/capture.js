@@ -109,6 +109,17 @@ function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lo
     const before = JSON.stringify(index);
     let entry = index.find((e) => e.sid === sid);
 
+    // Deleted by `memo clear` — never import it again from the Claude transcript (P5).
+    if (entry && entry.deletedAt) {
+      const cursors = readJson(cursorsPath(repo.id), {});
+      if (cursors[sid]) {
+        delete cursors[sid];
+        writeJsonAtomic(cursorsPath(repo.id), cursors);
+      }
+      log('capture', { event, repo: repo.id, sid: sid8, status: 'tombstoned' });
+      return { status: 'tombstoned', newEvents: 0 };
+    }
+
     const setStatus = () => {
       if (!entry) return;
       if (event === 'SessionEnd') entry.status = 'ended';
@@ -216,23 +227,30 @@ function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lo
   }
 }
 
+// Catch up every known session of one repo. Never throws.
+function sweepRepo(repo) {
+  const results = [];
+  let cursors = {};
+  try { cursors = readJson(cursorsPath(repo.id), {}); } catch (err) {
+    log('capture', { event: 'sweep', repo: repo.id, status: 'bad_cursors', error: err.message });
+    return results;
+  }
+  for (const sid of Object.keys(cursors)) {
+    try {
+      results.push({ repo: repo.id, sid, ...captureSession({ repo, sid, event: 'sweep', lockWaitMs: 5000 }) });
+    } catch (err) {
+      log('capture', { event: 'sweep', repo: repo.id, sid: sid.slice(0, 8), status: 'error', error: err.message });
+      results.push({ repo: repo.id, sid, status: 'error', newEvents: 0 });
+    }
+  }
+  return results;
+}
+
 function sweep() {
   const results = [];
   for (const repo of repos.load()) {
     if (!repo.enabled) continue;
-    let cursors = {};
-    try { cursors = readJson(cursorsPath(repo.id), {}); } catch (err) {
-      log('capture', { event: 'sweep', repo: repo.id, status: 'bad_cursors', error: err.message });
-      continue;
-    }
-    for (const sid of Object.keys(cursors)) {
-      try {
-        results.push({ repo: repo.id, sid, ...captureSession({ repo, sid, event: 'sweep', lockWaitMs: 5000 }) });
-      } catch (err) {
-        log('capture', { event: 'sweep', repo: repo.id, sid: sid.slice(0, 8), status: 'error', error: err.message });
-        results.push({ repo: repo.id, sid, status: 'error', newEvents: 0 });
-      }
-    }
+    for (const r of sweepRepo(repo)) results.push(r);
   }
   return results;
 }
@@ -294,4 +312,4 @@ async function command(argv = []) {
   }
 }
 
-module.exports = { command, captureSession, sweep, readStdin };
+module.exports = { command, captureSession, sweep, sweepRepo, cursorsPath, readStdin };

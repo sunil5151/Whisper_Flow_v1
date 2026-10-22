@@ -17,7 +17,7 @@
 // Note: current Haiku/Sonnet/Opus models think by default and return thinking blocks
 // with empty text before the answer, so every text block is collected, not content[0].
 
-const { ProviderError, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota } = require('./provider');
+const { ProviderError, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota, looksLikeRateLimit } = require('./provider');
 const { apiKey } = require('../config');
 
 const URL = 'https://api.anthropic.com/v1/messages';
@@ -58,7 +58,9 @@ function create(cfg, opts = {}) {
         });
         const requestId = (res.headers && typeof res.headers.get === 'function' && res.headers.get('request-id')) || null;
         if (res.status !== 200) {
-          const kind = looksLikeQuota(res.status, res.text) ? 'quota' : kindForStatus(res.status);
+          const kind = looksLikeQuota(res.status, res.text) ? 'quota'
+            : looksLikeRateLimit(res.status, res.text) ? 'retryable'
+              : kindForStatus(res.status);
           throw new ProviderError(errorMessage(res.status, res.text), {
             kind, status: res.status, retryAfterMs: retryAfterMs(res.headers), requestId
           });

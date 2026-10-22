@@ -75,3 +75,23 @@
 
 ## 9. Surprises / plan changes for P1–P4
 -
+
+## 10. Measurements (P6, fill during the end-to-end run)
+| Metric | Value | How measured |
+|---|---|---|
+| Cycle RAM peak | | Task Manager during `memo cycle` |
+| No-op cycle | ms | `memo cycle` with no new data (prints `cycle ok in N ms`) |
+| Normal cycle | ms | `memo cycle` after a real session |
+| `.memory/` growth | KB/day | `git count-objects -v` or folder size, two days apart |
+| Tokens per cycle | in / out | `memo status` line 3, difference over one cycle |
+| Cost for one day | $ | `memo status` month total, difference over one day |
+
+## 11. P6 end-to-end checklist
+- [ ] `uninstall_memo.bat` then `install_memo.bat` on a clean machine state
+- [ ] repo path with spaces and a Hindi folder name
+- [ ] real 45-min Claude Code session: one bug fixed, one decision, one TODO
+- [ ] after 2 cycles: session file, records, PROJECT_STATE.md, TASKS.md, memory commits, `memo status`
+- [ ] new session asks "kya baaki hai?" and gets the right answer
+- [ ] Wi-Fi off during a cycle → `api_failed`, next cycle recovers, no duplicate records
+- [ ] `memo clear --session` flow, then confirm it does not come back after 15 min
+- [ ] every committed `.memory/` file read once before `git push`

@@ -25,3 +25,7 @@ Files: .specstory/history/2026-10-21_16-11-47Z-pasted-content-id-468b.md (+8503 
 ## 2026-10-22 07:08 · commit a0576ca
 s008
 Files: sync_local_main.bat (+85 -0)
+
+## 2026-10-22 07:17 · commit 3f0645b
+s008
+Files: sync_local_main_with_conflicts.bat (+77 -0)

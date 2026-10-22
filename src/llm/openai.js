@@ -2,7 +2,7 @@
 
 // OpenAI provider over raw fetch (zero dependencies).
 //
-// Endpoint used: POST https://api.openai.com/v1/chat/completions — the endpoint named
+// Endpoint used: POST <baseUrl or https://api.openai.com/v1>/chat/completions — the endpoint named
 // in the P2 spec — with response_format {type:'json_object'} (JSON mode), headers
 // Authorization: Bearer <key>, content-type: application/json.
 //   body  {model, max_completion_tokens, response_format, messages:[{role:'system'},{role:'user'}]}
@@ -13,10 +13,16 @@
 // plan raises is unresolved. max_completion_tokens is sent because max_tokens is rejected
 // by newer models; if a model rejects it, this is the first thing to change.
 
-const { ProviderError, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota } = require('./provider');
+const { ProviderError, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota, looksLikeRateLimit } = require('./provider');
 const { apiKey } = require('../config');
 
 const URL = 'https://api.openai.com/v1/chat/completions';
+
+// config.baseUrl points the same wire format at any OpenAI-compatible host
+// (Gemini's /v1beta/openai, Groq, OpenRouter, a local Ollama, …).
+function endpoint(cfg) {
+  return cfg && cfg.baseUrl ? cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions' : URL;
+}
 
 function textOf(body) {
   const choice = body && Array.isArray(body.choices) ? body.choices[0] : null;
@@ -50,7 +56,7 @@ function create(cfg, opts = {}) {
     async complete({ system, user, maxTokens = 2000, model = cfg.model }) {
       if (!key) throw new ProviderError('no API key in env ' + cfg.apiKeyEnv, { kind: 'auth' });
       return withRetries('openai', async () => {
-        const res = await postJson(URL, {
+        const res = await postJson(endpoint(cfg), {
           headers: { authorization: 'Bearer ' + key },
           body: {
             model,
@@ -63,7 +69,9 @@ function create(cfg, opts = {}) {
         });
         const requestId = (res.headers && typeof res.headers.get === 'function' && res.headers.get('x-request-id')) || null;
         if (res.status !== 200) {
-          const kind = looksLikeQuota(res.status, res.text) ? 'quota' : kindForStatus(res.status);
+          const kind = looksLikeQuota(res.status, res.text) ? 'quota'
+            : looksLikeRateLimit(res.status, res.text) ? 'retryable'
+              : kindForStatus(res.status);
           throw new ProviderError(errorMessage(res.status, res.text), {
             kind, status: res.status, retryAfterMs: retryAfterMs(res.headers), requestId
           });
@@ -84,4 +92,4 @@ function create(cfg, opts = {}) {
   };
 }
 
-module.exports = { create, URL, textOf };
+module.exports = { create, URL, endpoint, textOf };

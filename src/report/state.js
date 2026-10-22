@@ -58,7 +58,8 @@ function sessionsNewestFirst(index) {
 // Collect everything the reports need in one pass.
 function loadState(root) {
   const all = records.foldAll(root);
-  const index = sessions.loadIndex(root).filter((e) => sessions.validSid(e.sid));
+  // Tombstones (`memo clear`) stay in index.json to block re-capture, but are never reported.
+  const index = sessions.liveEntries(root);
   return { all, index };
 }
 

@@ -30,9 +30,13 @@ const SID = 'cccccccc-1111-4222-8333-444444444444';
 const SID2 = 'dddddddd-1111-4222-8333-444444444444';
 const DATE = '2026-10-21';
 
-function events(sid = SID) {
+function events(sid = SID, pad = 0) {
   const at = (n) => '2026-10-21T09:0' + n + ':00.000+05:30';
-  const base = (seq, id, type, extra) => ({ v: 1, id, sid, seq, ts: at(seq), agent: 'claude-code', type, ...extra });
+  const filler = pad > 0 ? ' ' + 'context detail. '.repeat(pad) : '';
+  const base = (seq, id, type, extra) => ({
+    v: 1, id, sid, seq, ts: at(seq), agent: 'claude-code', type, ...extra,
+    ...(extra.text ? { text: extra.text + filler } : {})
+  });
   return [
     base(1, 'e-aaaa0001', 'user_prompt', { text: 'npm test is failing, fix it' }),
     base(2, 'e-aaaa0002', 'tool_call', { tool: 'Bash', text: 'npm test' }),
@@ -46,7 +50,7 @@ function events(sid = SID) {
   ];
 }
 
-function setup(t, { config: configPatch = {}, sessions: extraSessions = [] } = {}) {
+function setup(t, { config: configPatch = {}, sessions: extraSessions = [], pad = 0 } = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'memo-proc-test-'));
   const root = path.join(base, 'repo');
   const home = path.join(base, 'home');
@@ -67,7 +71,7 @@ function setup(t, { config: configPatch = {}, sessions: extraSessions = [] } = {
   }, null, 2) + '\n');
 
   const index = [];
-  const all = [{ sid: SID, list: events(SID) }, ...extraSessions];
+  const all = [{ sid: SID, list: events(SID, pad) }, ...extraSessions];
   for (const { sid, list } of all) {
     const dir = path.join(root, '.memory', 'sessions', '2026', '10', '21');
     fs.mkdirSync(dir, { recursive: true });
@@ -337,7 +341,8 @@ test('maxCallsPerCycle caps the run and reports the backlog', { skip: SKIP }, (t
 });
 
 test('a small token cap splits one session into several jobs', { skip: SKIP }, (t) => {
-  const ctx = setup(t, { config: { maxInputTokensPerCall: 1000 } });
+  // Events are padded so they outgrow the 500-token floor batchEvents() keeps per request.
+  const ctx = setup(t, { config: { maxInputTokensPerCall: 1000 }, pad: 40 });
   const r = ctx.memo(['process'], { MEMO_MOCK_LLM: 'decision,task' });
   assert.equal(r.status, 0, r.stderr);
   const calls = usageLines(ctx.home).length;

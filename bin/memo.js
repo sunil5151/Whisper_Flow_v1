@@ -16,6 +16,18 @@ memo config                       print ~/.memo/config.json (no secrets)
 memo config set <key> <value>     change one setting
 memo process                      extract records from new captured events
      [--repo <path>] [--dry-run] [--retry-failed] [--commit]
+memo cycle                        one scheduled run: capture, process, report, commit
+memo status                       what MEMO did and what it cost this month
+memo doctor [--live]              check the setup; --live makes one cheap API call
+memo pause | memo resume          stop/start processing (task stays registered)
+memo install                      first-run setup: config, Claude hooks, privacy notice
+     [--provider <p>] [--model <m>] [--yes]
+memo sessions [--date YYYY-MM-DD] browse captured dates, or the sessions of one date
+memo show <sid8|sid>              one session: summary, files, records it produced
+memo tasks [--all]                open tasks in the terminal
+memo clear --session <sid> | --date <d> | --record <id> | --all-repo-data
+     [--with-derived] [--yes] [--confirm <text>]   dry run unless --yes
+memo console                      numbered menu over all of the above
 memo hook                         (internal) called by git post-commit
 `;
 
@@ -80,6 +92,41 @@ async function main(argv) {
     case 'process':
       await require('../src/extract/process.js').command(argv.slice(3));
       break;
+    case 'cycle':
+      // The scheduled task calls this: it must never exit non-zero (see the catch below).
+      await require('../src/cycle.js').command(argv.slice(3));
+      process.exitCode = 0;
+      break;
+    case 'status':
+      require('../src/status.js').statusCommand();
+      break;
+    case 'doctor':
+      await require('../src/status.js').doctorCommand(argv.slice(3));
+      break;
+    case 'pause':
+      require('../src/status.js').pauseCommand(true);
+      break;
+    case 'resume':
+      require('../src/status.js').pauseCommand(false);
+      break;
+    case 'install':
+      await require('../src/install.js').install(argv.slice(3));
+      break;
+    case 'sessions':
+      require('../src/browse.js').sessionsCommand(argv.slice(3));
+      break;
+    case 'show':
+      require('../src/browse.js').showCommand(argv.slice(3));
+      break;
+    case 'tasks':
+      require('../src/browse.js').tasksCommand(argv.slice(3));
+      break;
+    case 'clear':
+      require('../src/delete.js').command(argv.slice(3));
+      break;
+    case 'console':
+      process.exitCode = await require('../src/ui/menu.js').run();
+      break;
     case '--help':
     case '-h':
     case undefined:
@@ -92,7 +139,11 @@ async function main(argv) {
 }
 
 main(process.argv).catch((err) => {
-  if (process.argv[2] === 'capture') process.exit(0);
+  // The hook and the scheduled task must never see a failure from MEMO.
+  if (process.argv[2] === 'capture' || process.argv[2] === 'cycle') {
+    require('../src/log.js').log('cycles', { event: 'crash', status: 'failed', error: err && err.message });
+    process.exit(0);
+  }
   if (process.env.MEMO_DEBUG === '1') {
     console.error(err && err.stack ? err.stack : err);
   } else {

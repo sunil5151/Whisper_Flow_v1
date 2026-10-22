@@ -29,6 +29,7 @@ class ProviderError extends Error {
 function kindForStatus(status) {
   if (status === 401 || status === 403) return 'auth';
   if (status === 429) return 'retryable';
+  if (status === 413) return 'bad_request';
   if (status >= 500) return 'retryable';
   if (status === 408 || status === 409) return 'retryable';
   if (status >= 400) return 'bad_request';
@@ -44,6 +45,12 @@ function retryAfterMs(headers) {
   const when = Date.parse(raw);
   if (Number.isFinite(when)) return Math.max(0, Math.min(120000, when - Date.now()));
   return null;
+}
+
+// Some hosts report a per-minute token limit as 413 instead of 429: that is retryable.
+function looksLikeRateLimit(status, bodyText) {
+  if (status !== 413) return false;
+  return /tokens per minute|rate limit|tpm|too large for model/i.test(String(bodyText || ''));
 }
 
 // Body text often carries the only signal that credits ran out.
@@ -115,6 +122,6 @@ function create(cfg, opts = {}) {
 }
 
 module.exports = {
-  ProviderError, create, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota,
+  ProviderError, create, postJson, withRetries, kindForStatus, retryAfterMs, looksLikeQuota, looksLikeRateLimit,
   TIMEOUT_MS, BACKOFF_MS, ATTEMPTS
 };

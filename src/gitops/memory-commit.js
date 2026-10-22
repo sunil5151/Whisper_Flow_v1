@@ -57,7 +57,7 @@ function message(root, files) {
 /**
  * @returns {{status: 'committed'|'no_changes'|'disabled'|'git_busy'|'no_identity', hash?, message?}}
  */
-function commitMemory(root, { cfg = config.load() } = {}) {
+function commitMemory(root, { cfg = config.load(), message: custom = null } = {}) {
   if (cfg.autoCommit === false) return { status: 'disabled' };
   const gd = gitDir(root);
   const busy = BUSY_MARKERS.find((m) => fs.existsSync(path.join(gd, m)));
@@ -73,7 +73,7 @@ function commitMemory(root, { cfg = config.load() } = {}) {
   git(root, ['add', '-A', '--', '.memory']);
   const files = git(root, ['diff', '--cached', '--name-only', '--', '.memory']).split('\n').filter(Boolean);
   if (files.length === 0) return { status: 'no_changes' };
-  const msg = message(root, files);
+  const msg = custom || message(root, files);
   git(root, ['commit', '--no-verify', '--only', '-q', '-m', msg, '--', '.memory'], { MEMO_INTERNAL_COMMIT: '1' });
   const hash = git(root, ['rev-parse', '--short', 'HEAD']);
   log('commit', { root: path.basename(root), status: 'committed', hash, files: files.length });

@@ -14,6 +14,7 @@ const EVENTS = [
   { id: 'e-aaaa0002', seq: 2, type: 'tool_call', tool: 'Bash', text: 'npm test' },
   { id: 'e-aaaa0003', seq: 3, type: 'tool_result', tool: 'Bash', ok: false, text: '# pass 14\n# fail 1' },
   { id: 'e-aaaa0004', seq: 4, type: 'assistant_text', text: 'The sk- pattern is too short.' },
+  { id: 'e-aaaa0005', seq: 5, type: 'tool_call', tool: 'Edit', text: 'src/redact.js (-1 +1 lines)' },
   { id: 'e-aaaa0008', seq: 8, type: 'tool_result', tool: 'Bash', ok: true, text: '# pass 15\n# fail 0' }
 ];
 

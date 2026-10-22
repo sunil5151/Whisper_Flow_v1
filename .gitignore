@@ -1,3 +1,6 @@
 node_modules/
 .memory/BRIEF.md
 patches/
+
+# local API key, never commit
+groq_key.md

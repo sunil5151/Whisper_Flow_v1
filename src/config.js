@@ -29,6 +29,8 @@ const DEFAULTS = {
   model: 'claude-haiku-5-5',
   consolidationModel: null,
   apiKeyEnv: 'MEMO_API_KEY',
+  // OpenAI-compatible endpoint root (Gemini, Groq, OpenRouter, Ollama, …); null = api.openai.com.
+  baseUrl: null,
   apiEnabled: true,
   paused: false,
   intervalMinutes: 15,
@@ -74,6 +76,10 @@ function sanitize(cfg) {
   }
   if (typeof out.apiKeyEnv !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(out.apiKeyEnv)) {
     out.apiKeyEnv = DEFAULTS.apiKeyEnv;
+  }
+  if (out.baseUrl !== null) {
+    const url = typeof out.baseUrl === 'string' ? out.baseUrl.trim().replace(/\/+$/, '') : '';
+    out.baseUrl = /^https:\/\/\S+$/.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\S*$/.test(url) ? url : null;
   }
   for (const k of ['apiEnabled', 'paused', 'autoCommit']) {
     if (typeof out[k] !== 'boolean') out[k] = DEFAULTS[k];
@@ -195,7 +201,7 @@ function maskKey(key) {
 // Printable config, secrets excluded.
 function describe(cfg) {
   const lines = ['config  ' + configPath()];
-  const keys = ['provider', 'model', 'consolidationModel', 'apiEnabled', 'paused', 'intervalMinutes',
+  const keys = ['provider', 'model', 'baseUrl', 'consolidationModel', 'apiEnabled', 'paused', 'intervalMinutes',
     'maxInputTokensPerCall', 'maxCallsPerCycle', 'monthlyBudgetUsd', 'summaryLanguage', 'autoCommit'];
   for (const key of keys) lines.push(key.padEnd(22) + ' ' + JSON.stringify(cfg[key]));
   lines.push('apiKeyEnv'.padEnd(22) + ' ' + keyEnvName(cfg) + ' → ' + maskKey(apiKey(cfg)));
