@@ -70,10 +70,10 @@
     "agent": "claude-code",
     "date": "2026-10-22",
     "start": "2026-10-22T16:54:23.310+05:30",
-    "end": "2026-10-22T17:35:09.743+05:30",
-    "events": 363,
+    "end": "2026-10-22T17:45:25.795+05:30",
+    "events": 376,
     "processedThrough": 0,
     "summary": "",
-    "status": "active"
+    "status": "ended"
   }
 ]

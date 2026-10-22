@@ -33,3 +33,7 @@ Files: sync_local_main_with_conflicts.bat (+77 -0)
 ## 2026-10-22 14:02 · commit ad467f8
 s008
 Files: .gitattributes (+1 -0), .gitignore (+3 -0), .specstory/history/2026-10-22_02-01-31Z-dekh-memo-implementation-plan.md (+4613 -0), .specstory/history/2026-10-22_08-01-33Z-dekh-p0-p1-p2.md (+8128 -0), AGENTS.md (+6 -2), bin/memo.js (+52 -1), docs/PHASE0_FINDINGS.md (+20 -0), docs/SECURITY.md (+122 -0), docs/SUPPORTED_AGENTS.md (+65 -0), scripts/windows/install_memo.bat (+91 -0), scripts/windows/memo_console.bat (+5 -0), scripts/windows/memo_status.bat (+7 -0), scripts/windows/register-task.ps1 (+90 -0), scripts/windows/run-hidden.vbs (+15 -0), scripts/windows/uninstall_memo.bat (+37 -0), +24 more
+
+## 2026-10-22 17:38 · commit ed84e09
+MEMO V1: one-step Windows installer, encrypted key, Groq default, quota-aware processing
+Files: .gitignore (+8 -1), bin/memo.js (+66 -28), package.json (+1 -1), scripts/try-extract.js (+10 -4), scripts/windows/install_memo.bat (+3 -90), scripts/windows/register-task.ps1 (+39 -15), scripts/windows/run-hidden.vbs (+7 -5), scripts/windows/uninstall_memo.bat (+3 -36), setup_memo.bat (+236 -0), src/config.js (+70 -14), src/cycle.js (+22 -8), src/extract/process.js (+119 -51), src/extract/schema.js (+44 -0), src/gitops/memory-commit.js (+15 -0), src/init.js (+31 -0), +19 more
