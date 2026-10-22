@@ -21,3 +21,7 @@ Files: .specstory/history/2026-10-21_15-38-21Z-explain-this-repo-in.md (+109 -0)
 ## 2026-10-21 22:09 · commit 0fa4072
 s007
 Files: .specstory/history/2026-10-21_16-11-47Z-pasted-content-id-468b.md (+8503 -0), .specstory/history/2026-10-21_16-11-47Z.md (+43 -0), AGENTS.md (+4 -2), MEMO_IMPLEMENTATION_PLAN.md (+843 -0), bin/memo.js (+27 -0), docs/PHASE2_API_EXTRACTION.md (+126 -0), scripts/try-extract.js (+90 -0), src/config.js (+214 -0), src/extract/process.js (+459 -0), src/extract/prompt.js (+123 -0), src/extract/validate.js (+224 -0), src/llm/anthropic.js (+87 -0), src/llm/mock.js (+101 -0), src/llm/openai.js (+87 -0), src/llm/provider.js (+120 -0), +19 more
+
+## 2026-10-22 07:08 · commit a0576ca
+s008
+Files: sync_local_main.bat (+85 -0)
