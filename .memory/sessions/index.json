@@ -97,5 +97,27 @@
     "processedThrough": 0,
     "summary": "",
     "status": "ended"
+  },
+  {
+    "sid": "5ffd5423-811d-4b89-a6e5-2073ea597e69",
+    "agent": "claude-code",
+    "date": "2026-10-23",
+    "start": "2026-10-23T19:51:42.870+05:30",
+    "end": "2026-10-23T19:53:39.007+05:30",
+    "events": 26,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "ended"
+  },
+  {
+    "sid": "4df331f3-d811-492c-8489-6e260a207d22",
+    "agent": "claude-code",
+    "date": "2026-10-23",
+    "start": "2026-10-23T19:56:50.468+05:30",
+    "end": "2026-10-23T19:57:03.134+05:30",
+    "events": 13,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "ended"
   }
 ]

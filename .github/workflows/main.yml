@@ -31,7 +31,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: Run analysis
         run: PYTHONPATH=.github/scripts python .github/scripts/analyze_repo.py
