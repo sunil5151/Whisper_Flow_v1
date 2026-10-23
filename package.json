@@ -1,7 +1,19 @@
 {
   "name": "memo",
   "version": "0.2.0",
+  "description": "Persistent project memory for AI coding agents, stored in your Git repo.",
+  "author": "Sunil",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunil5151/Whisper_Flow_v1.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sunil5151/Whisper_Flow_v1/issues"
+  },
+  "homepage": "https://github.com/sunil5151/Whisper_Flow_v1#readme",
+  "keywords": ["ai", "agents", "memory", "git", "cli"],
+  "private": true,
   "bin": {
     "memo": "bin/memo.js"
   },
