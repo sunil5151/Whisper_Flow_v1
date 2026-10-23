@@ -3,42 +3,49 @@ import os
 from datetime import datetime
 
 COST_LOG_FILE = "cost_log.json"
-OPENROUTER_PRICING = {
-    "glm-4-flash": 0.001  # $0.001 per 1K tokens
+MODEL = "z-ai/glm-5.3-flash"
+
+# USD per 1M tokens. Fallback only — used if OpenRouter does not return usage.cost.
+# VERIFY on https://openrouter.ai/z-ai/glm-5.3-flash (output price was cut off in screenshot).
+PRICE_PER_M = {
+    MODEL: {"input": 0.0052, "output": 0.19},
 }
 
-def estimate_cost(input_tokens, output_tokens, model="glm-4-flash"):
-    """Estimate cost for API call"""
-    rate = OPENROUTER_PRICING.get(model, 0.001)
-    total_tokens = input_tokens + output_tokens
-    cost = (total_tokens / 1000) * rate
-    return cost
 
-def log_cost(input_tokens, output_tokens, issues_count):
-    """Log API call cost"""
-    if not os.path.exists(COST_LOG_FILE):
-        log_data = {"total_cost": 0, "calls": []}
+def estimate_cost(input_tokens, output_tokens, model=MODEL):
+    p = PRICE_PER_M.get(model, {"input": 0.0, "output": 0.0})
+    return (input_tokens * p["input"] + output_tokens * p["output"]) / 1_000_000
+
+
+def log_cost(input_tokens, output_tokens, issues_count, actual_cost=None, model=MODEL):
+    if os.path.exists(COST_LOG_FILE):
+        try:
+            with open(COST_LOG_FILE, "r") as f:
+                log_data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            log_data = {"total_cost": 0, "calls": []}
     else:
-        with open(COST_LOG_FILE, "r") as f:
-            log_data = json.load(f)
-    
-    cost = estimate_cost(input_tokens, output_tokens)
-    
-    call_entry = {
+        log_data = {"total_cost": 0, "calls": []}
+
+    if actual_cost is not None:
+        cost, source = float(actual_cost), "openrouter"
+    else:
+        cost, source = estimate_cost(input_tokens, output_tokens, model), "estimate"
+
+    log_data["calls"].append({
         "timestamp": datetime.now().isoformat(),
+        "model": model,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": input_tokens + output_tokens,
-        "estimated_cost": round(cost, 6),
-        "issues_found": issues_count,
-        "model": "glm-4-flash"
-    }
-    
-    log_data["calls"].append(call_entry)
-    log_data["total_cost"] = round(log_data["total_cost"] + cost, 6)
+        "cost_usd": round(cost, 8),
+        "cost_source": source,
+        "issues_created": issues_count,
+    })
+    log_data["total_cost"] = round(log_data.get("total_cost", 0) + cost, 8)
     log_data["total_calls"] = len(log_data["calls"])
-    
+
     with open(COST_LOG_FILE, "w") as f:
         json.dump(log_data, f, indent=2)
-    
-    print(f"💰 Cost logged: ${cost:.6f} | Total: ${log_data['total_cost']:.6f}")
+
+    print(f"💰 Cost ({source}): ${cost:.8f} | Total: ${log_data['total_cost']:.8f}")
