@@ -61,8 +61,8 @@
     "start": "2026-10-22T16:52:55.436+05:30",
     "end": "2026-10-22T16:52:55.436+05:30",
     "events": 1,
-    "processedThrough": 0,
-    "summary": "",
+    "processedThrough": 1,
+    "summary": "The session contained a single system event invoking a model command, but no user or tool interactions were recorded, so no durable outcomes were captured.",
     "status": "ended"
   },
   {
