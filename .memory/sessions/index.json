@@ -72,8 +72,8 @@
     "start": "2026-10-22T16:54:23.310+05:30",
     "end": "2026-10-22T17:45:25.795+05:30",
     "events": 376,
-    "processedThrough": 0,
-    "summary": "",
+    "processedThrough": 4,
+    "summary": "In a single session the user provided a detailed mission statement and asked for explanations of the repository and the current session name. No code changes or test results were produced.",
     "status": "ended"
   },
   {
