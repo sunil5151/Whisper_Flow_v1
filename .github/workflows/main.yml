@@ -1,33 +1,50 @@
+name: Repo Analysis
+
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
+    #- cron: '0 3 * * *'        # Daily 03:00 UTC (08:30 IST)
+    - cron: '*/5 * * * *'    # Every 5 min — enable only if you accept ~288 runs/commits per day
   workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: repo-analysis
+  cancel-in-progress: false
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
     env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
-        run: pip install requests PyGithub
-      
+        run: pip install requests
+
       - name: Run analysis
-        run: python .github/scripts/analyze_repo.py
-      
+        run: PYTHONPATH=.github/scripts python .github/scripts/analyze_repo.py
+
       - name: Commit results
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add analysis_reports/ cost_log.json
-          git commit -m "chore: auto-generate analysis & cost report" || true
-          git push || true
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: auto-generate analysis & cost report [skip ci]"
+          git pull --rebase
+          git push
