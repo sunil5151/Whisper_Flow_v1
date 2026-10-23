@@ -45,3 +45,7 @@ Files: .specstory/history/2026-10-22_11-20-23Z.md (+23 -0), .specstory/history/2
 ## 2026-10-23 07:09 · commit 72e7ec8
 s011
 Files: .specstory/history/2026-10-22_12-40-44Z-dekh-maine-grok-key.md (+631 -0), .specstory/history/2026-10-23_01-24-32Z-pasted-content-id-ba4c.md (+1134 -0), codebase_summary.md (+100 -0), scripts/codebase-summary.js (+122 -0)
+
+## 2026-10-23 19:48 · commit a6c9dea
+Add README and package.json metadata
+Files: README.md (+38 -1), package.json (+12 -0)
