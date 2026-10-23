@@ -72,8 +72,8 @@
     "start": "2026-10-22T16:54:23.310+05:30",
     "end": "2026-10-22T17:45:25.795+05:30",
     "events": 376,
-    "processedThrough": 12,
-    "summary": "During the session the assistant listed repository contents and displayed key source files. The user requested repository explanations and session status, but no new durable decisions, facts, errors or tasks were created or updated beyond existing records.",
+    "processedThrough": 19,
+    "summary": "The user asked for a concise repo description and the current session name, and requested a summary of completed phases and remaining work. The assistant audited the repository, listed scripts and files, and scanned for exposed keys, but no new durable facts, decisions, or tasks were derived. No too",
     "status": "ended"
   },
   {
