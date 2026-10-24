@@ -119,5 +119,16 @@
     "processedThrough": 0,
     "summary": "",
     "status": "ended"
+  },
+  {
+    "sid": "f4f9c43a-f55a-4b57-ac5d-09f294427c7f",
+    "agent": "claude-code",
+    "date": "2026-10-24",
+    "start": "2026-10-24T16:37:36.135+05:30",
+    "end": "2026-10-24T16:50:06.948+05:30",
+    "events": 18,
+    "processedThrough": 0,
+    "summary": "",
+    "status": "active"
   }
 ]
