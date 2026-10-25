@@ -1,5 +1,5 @@
 {
-  "total_cost": 0.00065194,
+  "total_cost": 0.00090924,
   "calls": [
     {
       "timestamp": "2026-10-23T06:12:41.098533",
@@ -30,7 +30,17 @@
       "cost_usd": 0.00022226,
       "cost_source": "openrouter",
       "issues_created": 5
+    },
+    {
+      "timestamp": "2026-10-25T21:59:03.939350",
+      "model": "z-ai/glm-5.3-flash",
+      "input_tokens": 913,
+      "output_tokens": 1040,
+      "total_tokens": 1953,
+      "cost_usd": 0.0002573,
+      "cost_source": "openrouter",
+      "issues_created": 5
     }
   ],
-  "total_calls": 3
+  "total_calls": 4
 }
