@@ -163,9 +163,9 @@ async function withRetries(name, call, { attempts = ATTEMPTS, backoff = BACKOFF_
  * @param {object} opts {fetchImpl, sleep, backoff, attempts, apiKey} — injected by tests
  */
 function create(cfg, opts = {}) {
-  const provider = String((cfg && cfg.provider) || 'groq');
+  const provider = String((cfg && cfg.provider) || 'openrouter');
   if (provider === 'anthropic') return require('./anthropic').create(cfg, opts);
-  if (provider === 'openai' || provider === 'groq') return require('./openai').create(cfg, opts);
+  if (provider === 'openai' || provider === 'groq' || provider === 'openrouter') return require('./openai').create(cfg, opts);
   if (provider === 'mock') return require('./mock').create(cfg, opts);
   throw new Error('unknown provider: ' + provider);
 }

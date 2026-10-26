@@ -1,7 +1,34 @@
 # Supported agents
 
-MEMO captures one agent today: **Claude Code**. Everything else is either planned or
-out of scope. Fill the "verified on" rows during the P6 end-to-end run.
+MEMO **reads context into** every agent below, and **captures** Claude Code, GitHub Copilot
+agent and Gemini (Google Antigravity) sessions today.
+
+Sync on open: Claude Code's SessionStart starts a background `memo cycle` (skipped if one ran in
+the last 5 minutes; `MEMO_AUTO_CYCLE=0` turns it off), and `memo init` adds a
+`MEMO: sync conversations` task to `.vscode/tasks.json` that VS Code-based editors (VS Code,
+Antigravity) run on folder open. Allow it once with **Tasks: Manage Automatic Tasks → Allow**.
+Either way every agent's new conversations are saved, summarised and the agent files refreshed.
+Fill the "verified on" rows during the P6 end-to-end run.
+
+## Reading the memory (every agent)
+
+`memo init` writes one `<!-- memo:start -->…<!-- memo:end -->` block into each file below. The
+block holds a pointer to `.memory/` plus a snapshot of open errors, tasks, decisions and the last
+three sessions, because these agents run no hook and often never open a file they are only
+pointed at. Each cycle and `memo report` refresh the block; the cycle commits a file only when its
+change is inside the block, so your own edits to these files are never committed for you. When
+processing is more than a day behind the captured sessions, the snapshot says it is stale.
+
+| Agent | File it loads by itself |
+|---|---|
+| Claude Code | `CLAUDE.md` (`@AGENTS.md`) + the SessionStart hook (`memo context`) |
+| GitHub Copilot (VS Code chat, coding agent) | `.github/copilot-instructions.md` |
+| Codex CLI, Cursor, Windsurf, Copilot agent mode | `AGENTS.md` |
+| Gemini CLI / Code Assist | `GEMINI.md` |
+
+Put project rules that every agent should follow in `AGENTS.md` outside the block; Copilot and
+Gemini see only the block, which points back to `AGENTS.md`. Delete the block from a file to stop
+MEMO from updating that file.
 
 ## Claude Code
 
@@ -47,12 +74,37 @@ out of scope. Fill the "verified on" rows during the P6 end-to-end run.
 - **Hook failures are silent by design**: `memo capture` always exits 0 and logs to
   `~/.memo/logs/capture.jsonl`, so a MEMO problem never breaks your session.
 
+## GitHub Copilot (agent sessions)
+
+| Item | Value |
+|---|---|
+| Capture method | the `memo cycle` sweep reads `<COPILOT_HOME or ~/.copilot>/session-state/<sid>/events.jsonl` |
+| Which sessions | those whose `workspace.yaml` `git_root` (or `cwd`) is the repo root |
+| Kept | `user.message`, `assistant.message` text, `tool.execution_start` / `_complete` (same limits and redaction as Claude Code) |
+| Dropped | `view` results (file contents), reasoning and encrypted blobs, usage and session bookkeeping |
+| Hooks | none — new Copilot sessions appear in `.memory/` after the next cycle (≤ 15 min) |
+| Verified on | Copilot `1.0.100-1`, producer `copilot-agent`, client `vscode-agent-host` (26 Oct 2026) |
+
+## Gemini in Google Antigravity
+
+| Item | Value |
+|---|---|
+| Capture method | the sweep reads `<ANTIGRAVITY_HOME or ~/.gemini/antigravity>/brain/<id>/.system_generated/logs/transcript.jsonl` |
+| Which sessions | the transcript names no workspace: a conversation belongs to the repo holding the first absolute path in its tool calls |
+| Kept | `USER_INPUT` (the `<USER_REQUEST>` text), `PLANNER_RESPONSE` text and tool calls, `GENERIC` tool results paired with their calls in order |
+| Dropped | thinking, file-read results, request metadata and settings notices |
+| Verified on | Antigravity transcripts of 26 Oct 2026 (Gemini 3.8 Flash) |
+
+A conversation that never touches a file of the repo is not matched; Gemini CLI (`~/.gemini/tmp`) is not read yet.
+
 ## Not supported yet
 
 | Agent | Status |
 |---|---|
 | Codex CLI | planned, P9 — needs an adapter in `src/capture/codex.js` |
-| Cursor / Windsurf / Copilot Chat | no stable local transcript + hook contract checked yet |
+| Copilot Chat panel sessions stored only in VS Code `workspaceStorage` | not read; the agent host above is |
+| claude.ai / Claude Desktop chats | kept on Anthropic's servers, no local transcript to read |
+| Cursor / Windsurf | no stable local transcript + hook contract checked yet |
 | Plain `git` usage without an agent | partially: the post-commit hook writes `.memory/progress.md` |
 
 ## Adding another agent

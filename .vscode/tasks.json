@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MEMO: sync conversations",
+      "detail": "Saves and organises Claude Code, Copilot and Gemini conversations into .memory/ when this folder opens.",
+      "type": "shell",
+      "command": "memo",
+      "args": ["cycle", "--quiet"],
+      "runOptions": { "runOn": "folderOpen" },
+      "presentation": { "reveal": "never", "panel": "dedicated", "showReuseMessage": false, "close": true },
+      "problemMatcher": []
+    }
+  ]
+}

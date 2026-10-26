@@ -68,3 +68,21 @@ test('SessionStart hook prints context for a registered repo, nothing otherwise'
   assert.equal(hook(other), '');
   assert.match(execFileSync(process.execPath, [MEMO, 'context'], { cwd: root, env, windowsHide: true, encoding: 'utf8' }), /T-1/);
 });
+
+test('agent-file snapshot carries open items inline and warns when processing is behind', (t) => {
+  const agents = require('../src/report/agents');
+  const root = path.join(tmp(t), 'repo');
+  records.append(root, [{ op: 'create', id: 'E-1', type: 'error', ts: '2026-10-20T10:00:00.000+05:30', statement: 'Task registration fails', status: 'observed' }]);
+  const done = { sid: 'aaaaaaaa11', date: '2026-10-20', end: '2026-10-20T11:00:00.000+05:30', events: 2, processedThrough: 2, summary: 'Fixed capture.' };
+  sessions.saveIndex(root, [done]);
+  const fresh = agents.snapshot(root);
+  assert.match(fresh, /### Snapshot \(sessions processed up to 2026-10-20\)/);
+  assert.match(fresh, /Open errors:\n- Task registration fails — observed \(E-1\)/);
+  assert.doesNotMatch(fresh, /Stale/);
+  assert.equal(agents.snapshot(root), fresh, 'same data → same text');
+  assert.match(fresh, /\nRecent sessions:\n- 2026-10-20 aaaaaaaa: Fixed capture\. → \.memory\/sessions\/2026\/10\/20\/aaaaaaaa11\.md\n/);
+  assert.ok(fresh.indexOf('Recent sessions:') < fresh.indexOf('Open errors:'), 'sessions come first');
+
+  sessions.saveIndex(root, [done, { sid: 'bbbbbbbb22', date: '2026-10-25', end: '2026-10-25T11:00:00.000+05:30', events: 5, processedThrough: 0 }]);
+  assert.match(agents.snapshot(root), /> Stale: newer sessions are captured but not processed yet/);
+});

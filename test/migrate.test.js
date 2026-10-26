@@ -92,6 +92,14 @@ test('memo init writes the AGENTS block once, creates CLAUDE.md and hints at mig
   assert.match(agents, /^# Agents\n\n<!-- memo:start -->/);
   assert.doesNotMatch(agents, /BRIEF\.md/);
   assert.equal(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), '@AGENTS.md\n');
+  const tasks = JSON.parse(fs.readFileSync(path.join(root, '.vscode', 'tasks.json'), 'utf8')).tasks;
+  assert.equal(tasks.length, 1, 'the folder-open task is written once');
+  assert.deepEqual([tasks[0].command, tasks[0].args, tasks[0].runOptions.runOn], ['memo', ['cycle', '--quiet'], 'folderOpen']);
+  for (const rel of ['.github/copilot-instructions.md', 'GEMINI.md']) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    assert.equal((text.match(/<!-- memo:start -->/g) || []).length, 1, rel);
+    assert.match(text, /### Snapshot \(sessions processed up to none\)\n\(no records yet\)\n<!-- memo:end -->/, rel);
+  }
   assert.ok(fs.existsSync(path.join(root, '.memory', 'README.md')));
   assert.ok(fs.existsSync(path.join(root, '.memory', 'PROJECT_STATE.md')));
   assert.ok(fs.existsSync(path.join(root, '.memory', 'records')));
@@ -108,4 +116,21 @@ test('memo note writes a manual record and refreshes reports', { skip: !HAS_GIT 
   assert.equal(rec.source, 'manual');
   assert.equal(rec.status, 'open');
   assert.match(fs.readFileSync(path.join(mem, 'TASKS.md'), 'utf8'), /ship it/);
+});
+
+test('memo init adds its task to an existing tasks.json and leaves a commented one alone', { skip: !HAS_GIT && 'git not installed' }, (t) => {
+  const { root } = setup(t);
+  execFileSync('git', ['init', '-q'], { cwd: root, windowsHide: true });
+  const file = path.join(root, '.vscode', 'tasks.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ version: '2.0.0', tasks: [{ label: 'build', type: 'shell', command: 'make' }] }));
+  const run = () => execFileSync(process.execPath, [MEMO, 'init'], { cwd: root, encoding: 'utf8', windowsHide: true, env: process.env });
+  run();
+  run();
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).tasks.map((x) => x.label), ['build', 'MEMO: sync conversations']);
+
+  const commented = '// mine\n{ "version": "2.0.0", "tasks": [] }\n';
+  fs.writeFileSync(file, commented);
+  assert.match(run(), /hint: \.vscode\/tasks\.json has comments/);
+  assert.equal(fs.readFileSync(file, 'utf8'), commented);
 });

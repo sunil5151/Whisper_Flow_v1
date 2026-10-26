@@ -8,9 +8,11 @@ const { readJson, writeJsonAtomic } = require('./util');
 const { DEFAULT_DENY_PATHS } = require('./redact');
 const secrets = require('./secrets');
 
-// USD per 1M tokens, standard tier. Groq: console.groq.com/docs/models, checked 22 Oct 2026;
+// USD per 1M tokens, standard tier. OpenRouter: openrouter.ai/api/v1/models, checked 25 Oct 2026;
+// Groq: console.groq.com/docs/models, checked 22 Oct 2026;
 // the others: plan §10.1, checked 20 Oct 2026. Costs shown by MEMO are always estimates.
 const PRICES = {
+  'z-ai/glm-5.3-flash': { inPerM: 0.15, outPerM: 0.50 },
   'openai/gpt-oss-20b': { inPerM: 0.075, outPerM: 0.30 },
   'openai/gpt-oss-120b': { inPerM: 0.15, outPerM: 0.60 },
   'claude-haiku-5-5': { inPerM: 0.10, outPerM: 0.50 },
@@ -21,32 +23,38 @@ const PRICES = {
   'gpt-6-astra': { inPerM: 10, outPerM: 50 }
 };
 
-const PROVIDERS = ['groq', 'anthropic', 'openai', 'mock'];
+const PROVIDERS = ['openrouter', 'groq', 'anthropic', 'openai', 'mock'];
 
-// What `memo install --provider <p>` starts from. Groq is the V1 default: low cost, free tier.
+// What `memo install --provider <p>` starts from. OpenRouter + GLM 5.3 Flash is the default: low cost, no per-minute cap.
 const PRESETS = {
-  groq: { model: 'openai/gpt-oss-20b', keyUrl: 'https://console.groq.com/keys', label: 'Groq (default, free tier available)' },
+  openrouter: { model: 'z-ai/glm-5.3-flash', keyUrl: 'https://openrouter.ai/keys', label: 'OpenRouter (default, GLM 5.3 Flash)' },
+  groq: { model: 'openai/gpt-oss-20b', keyUrl: 'https://console.groq.com/keys', label: 'Groq (free tier available)' },
   anthropic: { model: 'claude-haiku-5-5', keyUrl: 'https://console.anthropic.com/settings/keys', label: 'Anthropic' },
   openai: { model: 'gpt-6-luna', keyUrl: 'https://platform.openai.com/api-keys', label: 'OpenAI, or any OpenAI-compatible endpoint (set baseUrl)' },
   mock: { model: 'mock', keyUrl: null, label: 'Mock (offline fixtures, never a real API call)' }
 };
 
 // Used when the env var named by config.apiKeyEnv is empty.
-const KEY_ENV_FALLBACK = { groq: 'GROQ_API_KEY', anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+const KEY_ENV_FALLBACK = {
+  openrouter: ['OPEN_ROUTER_API_KEY', 'OPENROUTER_API_KEY'],
+  groq: ['GROQ_API_KEY'],
+  anthropic: ['ANTHROPIC_API_KEY'],
+  openai: ['OPENAI_API_KEY']
+};
 
 const RESPONSE_FORMATS = ['auto', 'json_schema', 'json_object', 'none'];
 
 const DEFAULTS = {
   v: 1,
-  provider: 'groq',
-  model: PRESETS.groq.model,
+  provider: 'openrouter',
+  model: PRESETS.openrouter.model,
   consolidationModel: null,
   apiKeyEnv: 'MEMO_API_KEY',
   // OpenAI-compatible endpoint root (Gemini, OpenRouter, Ollama, …); null = the provider's own.
   baseUrl: null,
   // auto: strict json_schema where the provider supports it, else JSON mode, else plain text.
   responseFormat: 'auto',
-  // Groq gpt-oss models only. Reasoning tokens are billed as output, so keep it low. null = omit.
+  // Groq gpt-oss and OpenRouter models. Reasoning tokens are billed as output, so keep it low. null = omit.
   reasoningEffort: 'low',
   apiEnabled: true,
   paused: false,
@@ -126,7 +134,7 @@ function sanitize(cfg) {
   for (const [model, p] of Object.entries(out.prices && typeof out.prices === 'object' ? out.prices : {})) {
     if (isPrice(p)) prices[model] = { inPerM: Number(p.inPerM), outPerM: Number(p.outPerM) };
   }
-  out.prices = Object.keys(prices).length > 0 ? prices : defaults().prices;
+  out.prices = { ...defaults().prices, ...prices };
   if (!Array.isArray(out.denyPaths) || out.denyPaths.some((p) => typeof p !== 'string')) {
     out.denyPaths = defaults().denyPaths;
   }
@@ -223,8 +231,7 @@ function priceFor(cfg, model) {
 // Env var that actually holds the key (configured name first, then the provider fallback).
 function keyEnvName(cfg) {
   if (process.env[cfg.apiKeyEnv]) return cfg.apiKeyEnv;
-  const fb = KEY_ENV_FALLBACK[cfg.provider];
-  if (fb && process.env[fb]) return fb;
+  for (const fb of KEY_ENV_FALLBACK[cfg.provider] || []) if (process.env[fb]) return fb;
   return cfg.apiKeyEnv;
 }
 

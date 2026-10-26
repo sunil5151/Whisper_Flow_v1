@@ -14,8 +14,14 @@ const { acquire } = require('../lock');
 const { log } = require('../log');
 const { readJson, writeJsonAtomic, localDate } = require('../util');
 const { DEFAULT_DENY_PATHS } = require('../redact');
-const { normalize } = require('./claude');
+const claude = require('./claude');
+const copilot = require('./copilot');
+const gemini = require('./gemini');
 const sessions = require('../store/sessions');
+
+const ADAPTERS = { 'claude-code': claude.normalize, copilot: copilot.normalize, gemini: gemini.normalize };
+// Agents that run no MEMO hook: the sweep finds their sessions itself.
+const DISCOVERED = { copilot: copilot.discover, gemini: gemini.discover };
 
 const STDIN_MAX = 1024 * 1024;
 const STDIN_TIMEOUT_MS = 2000;
@@ -86,7 +92,7 @@ function readRange(file, start, end) {
  * Capture one session of one registered repo.
  * @returns {{status: string, newEvents: number}}
  */
-function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lockWaitMs = 1500 }) {
+function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lockWaitMs = 1500, agent = 'claude-code' }) {
   const root = repo.root;
   const t0 = Date.now();
   const sid8 = String(sid).slice(0, 8);
@@ -150,6 +156,9 @@ function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lo
 
     if (!cur) cur = { transcriptPath: tPath, offset: 0, lineNo: 0, tools: {} };
     cur.transcriptPath = tPath;
+    const agentName = ADAPTERS[cur.agent] ? cur.agent : agent;
+    if (agentName !== 'claude-code') cur.agent = agentName;
+    const normalize = ADAPTERS[agentName] || claude.normalize;
     cur.tools = cur.tools || {};
     let status = 'ok';
     if (stat.size < cur.offset) {
@@ -203,7 +212,7 @@ function captureSession({ repo, sid, transcriptPath, event = 'sweep', source, lo
       sessions.appendEvents(file, added);
       if (added.length > 0) {
         if (!entry) {
-          entry = { sid, agent: 'claude-code', date, start: added[0].ts, end: added[0].ts, events: 0, processedThrough: 0, summary: '', status: 'active' };
+          entry = { sid, agent: agentName, date, start: added[0].ts, end: added[0].ts, events: 0, processedThrough: 0, summary: '', status: 'active' };
           index.push(entry);
         }
         entry.events = seq;
@@ -241,6 +250,23 @@ function sweepRepo(repo) {
     } catch (err) {
       log('capture', { event: 'sweep', repo: repo.id, sid: sid.slice(0, 8), status: 'error', error: err.message });
       results.push({ repo: repo.id, sid, status: 'error', newEvents: 0 });
+    }
+  }
+  // New sessions of hook-less agents are found here once, then tracked by cursor like the rest.
+  const tombstoned = new Set(sessions.loadIndex(repo.root).filter((e) => e.deletedAt).map((e) => e.sid));
+  for (const [agent, discover] of Object.entries(DISCOVERED)) {
+    let found = [];
+    try { found = discover(repo.root); } catch (err) {
+      log('capture', { event: 'sweep', repo: repo.id, agent, status: 'error', error: err.message });
+    }
+    for (const { sid, transcriptPath } of found) {
+      if (cursors[sid] || tombstoned.has(sid)) continue;
+      try {
+        results.push({ repo: repo.id, sid, ...captureSession({ repo, sid, transcriptPath, agent, event: 'sweep', lockWaitMs: 5000 }) });
+      } catch (err) {
+        log('capture', { event: 'sweep', repo: repo.id, sid: sid.slice(0, 8), status: 'error', error: err.message });
+        results.push({ repo: repo.id, sid, status: 'error', newEvents: 0 });
+      }
     }
   }
   return results;
@@ -282,7 +308,31 @@ async function hookEntry() {
     source: data.source || data.reason,
     lockWaitMs: event === 'SessionEnd' ? 800 : 1500
   });
-  if (event === 'SessionStart') printContext(root);
+  if (event === 'SessionStart') {
+    printContext(root);
+    startCycle();
+  }
+}
+
+const AUTO_CYCLE_GAP_MS = 5 * 60 * 1000;
+
+// Opening a session syncs every agent's conversations now instead of at the next 15-minute run.
+// Detached and hidden; the cycle lock keeps it from overlapping the scheduled one.
+function startCycle() {
+  if (process.env.MEMO_AUTO_CYCLE === '0') return;
+  try {
+    const { statusPath } = require('../cycle');
+    const last = readJson(statusPath(), {}) || {};
+    const ts = last.lastCycle && Date.parse(last.lastCycle.ts);
+    if (ts && Date.now() - ts < AUTO_CYCLE_GAP_MS) return;
+    const { spawn } = require('node:child_process');
+    spawn(process.execPath, [require('../paths').memoBin(), 'cycle', '--quiet'], {
+      detached: true, stdio: 'ignore', windowsHide: true
+    }).unref();
+    log('capture', { event: 'SessionStart', status: 'cycle_started' });
+  } catch (err) {
+    log('capture', { event: 'SessionStart', status: 'cycle_start_error', error: err.message });
+  }
 }
 
 // SessionStart stdout is added to Claude's context. fs.writeSync: the caller exits right after.

@@ -1,6 +1,7 @@
 'use strict';
 
-// `memo commit` — commit only .memory/ (plan §3 #14, P3). Never touches other paths.
+// `memo commit` — commit only .memory/ (plan §3 #14, P3), plus an agent instruction file
+// (AGENTS.md, …) when its only change against HEAD is inside the generated memo block.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -10,6 +11,7 @@ const config = require('../config');
 const { log } = require('../log');
 const { localDate } = require('../util');
 const { findSecrets } = require('../redact');
+const agentFiles = require('../report/agents');
 
 const BUSY_MARKERS = ['index.lock', 'MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD'];
 
@@ -55,6 +57,18 @@ function message(root, files) {
   return msg;
 }
 
+// Tracked agent files whose working-tree change is confined to the memo block.
+function blockOnlyFiles(root) {
+  return agentFiles.AGENT_FILES.filter((rel) => {
+    let current;
+    try { current = fs.readFileSync(path.join(root, rel), 'utf8'); } catch (_) { return false; }
+    let head;
+    try { head = git(root, ['show', 'HEAD:' + rel]); } catch (_) { return false; }
+    return current.replace(/\r\n?/g, '\n').trim() !== head.replace(/\r\n?/g, '\n').trim() &&
+      agentFiles.sameOutsideBlock(current, head);
+  });
+}
+
 /**
  * @returns {{status: 'committed'|'no_changes'|'disabled'|'git_busy'|'no_identity', hash?, message?}}
  */
@@ -66,25 +80,26 @@ function commitMemory(root, { cfg = config.load(), message: custom = null } = {}
     log('commit', { root: path.basename(root), status: 'git_busy', marker: busy });
     return { status: 'git_busy', marker: busy };
   }
-  if (!git(root, ['status', '--porcelain', '--', '.memory'])) return { status: 'no_changes' };
+  const paths = ['.memory', ...blockOnlyFiles(root)];
+  if (!git(root, ['status', '--porcelain', '--', ...paths])) return { status: 'no_changes' };
   if (identityMissing(root)) {
     log('commit', { root: path.basename(root), status: 'no_identity' });
     return { status: 'no_identity' };
   }
-  git(root, ['add', '-A', '--', '.memory']);
-  const files = git(root, ['diff', '--cached', '--name-only', '--', '.memory']).split('\n').filter(Boolean);
+  git(root, ['add', '-A', '--', ...paths]);
+  const files = git(root, ['diff', '--cached', '--name-only', '--', ...paths]).split('\n').filter(Boolean);
   if (files.length === 0) return { status: 'no_changes' };
   // Last line of defence: redaction runs at capture, but never commit a recognisable credential.
-  const added = git(root, ['diff', '--cached', '-U0', '--no-color', '--', '.memory']).split('\n')
+  const added = git(root, ['diff', '--cached', '-U0', '--no-color', '--', ...paths]).split('\n')
     .filter((l) => l.startsWith('+') && !l.startsWith('+++')).join('\n');
   const found = findSecrets(added);
   if (found.length > 0) {
-    git(root, ['reset', '-q', '--', '.memory']);
+    git(root, ['reset', '-q', '--', ...paths]);
     log('commit', { root: path.basename(root), status: 'secret_blocked', formats: found });
     return { status: 'secret_blocked', formats: found };
   }
   const msg = custom || message(root, files);
-  git(root, ['commit', '--no-verify', '--only', '-q', '-m', msg, '--', '.memory'], { MEMO_INTERNAL_COMMIT: '1' });
+  git(root, ['commit', '--no-verify', '--only', '-q', '-m', msg, '--', ...paths], { MEMO_INTERNAL_COMMIT: '1' });
   const hash = git(root, ['rev-parse', '--short', 'HEAD']);
   log('commit', { root: path.basename(root), status: 'committed', hash, files: files.length });
   return { status: 'committed', hash, message: msg, files: files.length };
@@ -110,4 +125,4 @@ function command(argv = []) {
   return res;
 }
 
-module.exports = { commitMemory, command, describe, BUSY_MARKERS };
+module.exports = { commitMemory, command, describe, blockOnlyFiles, BUSY_MARKERS };

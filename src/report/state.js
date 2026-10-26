@@ -207,6 +207,6 @@ function writeState(root, opts = {}) {
 }
 
 module.exports = {
-  renderState, writeState, display, writeKeepingHeader, statePath, loadState, buildSections,
+  renderState, writeState, display, writeKeepingHeader, statePath, loadState, buildSections, lastProcessedTs,
   sessionsNewestFirst, sessionLink, label, oneLine, byPriorityAge, byTsDesc, OPEN_TASK, OPEN_ERROR
 };

@@ -1,9 +1,12 @@
 'use strict';
 
-// OpenAI-compatible chat completions over raw fetch (zero dependencies). Serves two providers:
+// OpenAI-compatible chat completions over raw fetch (zero dependencies). Serves three providers:
 //
-//   groq    POST https://api.groq.com/openai/v1/chat/completions   (V1 default)
-//   openai  POST <baseUrl or https://api.openai.com/v1>/chat/completions
+//   openrouter POST https://openrouter.ai/api/v1/chat/completions   (default)
+//   groq       POST https://api.groq.com/openai/v1/chat/completions
+//   openai     POST <baseUrl or https://api.openai.com/v1>/chat/completions
+//
+// OpenRouter: max_tokens instead of max_completion_tokens, reasoning as {effort, exclude}.
 //
 // headers  Authorization: Bearer <key>, content-type: application/json
 // body     {model, max_completion_tokens, response_format?, messages, reasoning_effort?, include_reasoning?}
@@ -21,6 +24,7 @@ const { apiKey } = require('../config');
 
 const URL = 'https://api.openai.com/v1/chat/completions';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // console.groq.com/docs/structured-outputs: strict json_schema support (22 Oct 2026).
 const GROQ_STRICT = new Set(['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'meta-models/muse-spark-open']);
 
@@ -28,7 +32,9 @@ const GROQ_STRICT = new Set(['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/
 // (Gemini's /v1beta/openai, OpenRouter, a local Ollama, …).
 function endpoint(cfg) {
   if (cfg && cfg.baseUrl) return cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions';
-  return cfg && cfg.provider === 'groq' ? GROQ_URL : URL;
+  if (cfg && cfg.provider === 'groq') return GROQ_URL;
+  if (cfg && cfg.provider === 'openrouter') return OPENROUTER_URL;
+  return URL;
 }
 
 // 'json_schema' | 'json_object' | 'none' for one call.
@@ -39,6 +45,7 @@ function formatFor(cfg, model, { json = true, schema = null } = {}) {
   if (wanted === 'json_schema') return schema ? 'json_schema' : 'json_object';
   if (wanted === 'json_object') return 'json_object';
   if (cfg.provider === 'groq' && !cfg.baseUrl && schema && GROQ_STRICT.has(model)) return 'json_schema';
+  if (cfg.provider === 'openrouter' && !cfg.baseUrl && schema) return 'json_schema';
   return 'json_object';
 }
 
@@ -75,7 +82,7 @@ function errorMessage(name, status, text) {
 }
 
 function create(cfg, opts = {}) {
-  const name = cfg.provider === 'groq' ? 'groq' : 'openai';
+  const name = cfg.provider === 'groq' || cfg.provider === 'openrouter' ? cfg.provider : 'openai';
   const key = opts.apiKey !== undefined ? opts.apiKey : apiKey(cfg);
   // Once a host refuses json_schema, stay on json_object for the rest of this run.
   let schemaRefused = false;
@@ -85,17 +92,17 @@ function create(cfg, opts = {}) {
     const sys = format === 'json_schema'
       ? system + '\nEvery item must contain every key of the schema: use null for fields that do not apply and [] for empty lists.'
       : system;
-    const body = {
-      model,
-      max_completion_tokens: maxTokens,
-      messages: [{ role: 'system', content: sys }, { role: 'user', content: user }]
-    };
+    const body = { model };
+    if (name === 'openrouter') body.max_tokens = maxTokens;
+    else body.max_completion_tokens = maxTokens;
+    body.messages = [{ role: 'system', content: sys }, { role: 'user', content: user }];
     const rf = responseFormat(format, schema);
     if (rf) body.response_format = rf;
     if (name === 'groq' && /^openai\/gpt-oss/.test(model)) {
       if (cfg.reasoningEffort) body.reasoning_effort = cfg.reasoningEffort;
       body.include_reasoning = false;
     }
+    if (name === 'openrouter' && cfg.reasoningEffort) body.reasoning = { effort: cfg.reasoningEffort, exclude: true };
     const res = await postJson(endpoint(cfg), {
       headers: { authorization: 'Bearer ' + key },
       body,
@@ -148,4 +155,4 @@ function create(cfg, opts = {}) {
   };
 }
 
-module.exports = { create, URL, GROQ_URL, GROQ_STRICT, endpoint, formatFor, textOf };
+module.exports = { create, URL, GROQ_URL, OPENROUTER_URL, GROQ_STRICT, endpoint, formatFor, textOf };
