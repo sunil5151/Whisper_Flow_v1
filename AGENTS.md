@@ -42,11 +42,11 @@ MEMO is a zero-dependency Node.js CLI that gives a Git repo a persistent memory 
 
 ### Snapshot (sessions processed up to 2026-10-26)
 Recent sessions:
+- 2026-10-26 a63ad3de: The user requested a simplified and better UI for the MEMO installation process. The assistant refactored `memo install` to a single step, defaulting to OpenRo… → .memory/sessions/2026/10/26/a63ad3de-1df8-42d6-b053-69309ab1bdfd.md
 - 2026-10-26 ae3e137b: User instructed merging main and push-fix together, preserving the side with more meaningful diff. After several aborted branch switches (memo hook/SpecStory k… → .memory/sessions/2026/10/26/ae3e137b-a28d-47c5-83d5-3704cc887f7d.md
 - 2026-10-26 ad1fcd99: The user attempted to set up the Claude GitHub integration: the /install-github-app command was run (both runs cancelled), and they tried `claude setup-token`,… → .memory/sessions/2026/10/26/ad1fcd99-1266-4264-8533-fa2e434d33ac.md
 - 2026-10-26 b01fd773: This session's events contain only a single system event recording that the /install-github-app command was invoked at 2026-10-26T14:10:32 local time. No tool … → .memory/sessions/2026/10/26/b01fd773-f369-4de9-9196-d4d02fc8311e.md
 - 2026-10-26 769ddbc2: The session contains only a single system event: the /install-github-app command was invoked at 2026-10-26 09:20:50 (+05:30) in whisper_flow_hackathon. No tool… → .memory/sessions/2026/10/26/769ddbc2-f7e4-4c6d-a22b-5d23fe02586c.md
-- 2026-10-26 0e5c3a78 (gemini): The user inquired about the granularity and scope of the current and past conversation history within MEMO. The system confirmed that all conversations are sav… → .memory/sessions/2026/10/26/0e5c3a78-e60c-4730-aedc-ea8095456a26.md
 Intent:
 - User wants all work done on the main branch only: commit the workflow to main and add a standing rule (in AGENTS.md) that Claude must never create other branches or work on them. (I-41c0ecf6)
 - User wants the current Antigravity-platform conversation (and future ones) to be automatically saved into MEMO; they asked how to achieve this since MEMO's capture currently does not read the Antigra… (I-7aac1970)
