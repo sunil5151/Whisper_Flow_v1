@@ -34,6 +34,12 @@ const PRIVACY = [
   '  warning   redaction is regex-based. Read .memory/ once before you push it anywhere public.'
 ];
 
+const PRIVACY_SHORT = [
+  '  Privacy: only repos where you run `memo init` are captured. Redacted summaries go to your',
+  '  AI provider; your source files never do. The key is encrypted for your Windows account.',
+  '  Full details: `memo install --privacy`. Stop anytime: `memo pause` or `memo uninstall`.'
+];
+
 const LEGACY_KEY_FILES = () => [path.join(memoHome(), 'key.txt')];
 
 function flag(argv, name) {
@@ -81,7 +87,8 @@ function legacyKeySources(cfg) {
 async function chooseProvider(cfg, argv, ask, interactive) {
   let provider = flag(argv, '--provider');
   let model = flag(argv, '--model');
-  if (interactive && !provider) {
+  const choose = interactive && argv.includes('--choose');
+  if (choose && !provider) {
     process.stdout.write('\nAI provider for memory extraction:\n');
     config.PROVIDERS.forEach((p, i) => process.stdout.write('  ' + (i + 1) + '. ' + p.padEnd(10) + ' ' + config.PRESETS[p].label + '\n'));
     const answer = await ask('choose 1-' + config.PROVIDERS.length + ' or a name', cfg.provider);
@@ -92,19 +99,19 @@ async function chooseProvider(cfg, argv, ask, interactive) {
     cfg = config.set('provider', provider).cfg;
     if (!model && cfg.model !== config.PRESETS[provider].model) model = config.PRESETS[provider].model;
   }
-  if (interactive && !flag(argv, '--model') && cfg.provider !== 'mock') {
+  if (choose && !flag(argv, '--model') && cfg.provider !== 'mock') {
     model = await ask('model id (Enter keeps it)', model || cfg.model);
   }
   if (model && model !== cfg.model) cfg = config.set('model', model).cfg;
-  if (cfg.provider === 'openai' && interactive) {
+  if (cfg.provider === 'openai' && choose) {
     const url = await ask('OpenAI-compatible base URL (Enter = api.openai.com)', cfg.baseUrl || '');
     if ((url || null) !== cfg.baseUrl) cfg = config.set('baseUrl', url || 'null').cfg;
   }
-  say('ok', 'provider ' + cfg.provider + ' · model ' + cfg.model + (cfg.baseUrl ? ' · ' + cfg.baseUrl : ''));
+  say('ok', 'AI model   ' + config.PRESETS[cfg.provider].label.replace(/ \(.*$/, '') + ' · ' + cfg.model + (cfg.baseUrl ? ' · ' + cfg.baseUrl : ''));
   return cfg;
 }
 
-async function setupKey(cfg, argv, ask, interactive) {
+async function setupKey(cfg, argv, ask, interactive, state = {}) {
   if (cfg.provider === 'mock') {
     say('ok', 'mock provider: no key needed (results are canned fixtures, not real AI output)');
     return true;
@@ -112,8 +119,8 @@ async function setupKey(cfg, argv, ask, interactive) {
   const keyModule = require('./key');
   const stored = secrets.has(cfg.provider) && secrets.read(cfg.provider);
   if (stored) {
-    say('ok', 'API key stored for ' + cfg.provider + ' ' + config.maskKey(stored));
-    if (!interactive || !yes(await ask('replace it? [y/N]', 'n'))) {
+    say('ok', 'API key    ' + config.maskKey(stored) + ' (already saved)');
+    if (!argv.includes('--new-key')) {
       offerLegacyCleanup(cfg);
       return true;
     }
@@ -122,16 +129,10 @@ async function setupKey(cfg, argv, ask, interactive) {
     const sources = file ? [{ kind: 'file', where: file, key: readKeyFile(file) }] : legacyKeySources(cfg);
     for (const src of sources.filter((s) => s.key)) {
       const label = src.kind === 'file' ? fwd(src.where) + ' (plain text)' : 'environment variable ' + src.where;
-      const take = !interactive || yes(await ask('found an API key in ' + label + '. Move it into the encrypted store? [Y/n]', 'y'));
-      if (!take) continue;
       keyModule.save(cfg.provider, src.key);
-      say('ok', 'key ' + config.maskKey(src.key) + ' moved into the ' + secrets.backend() + ' store');
-      const remove = interactive && yes(await ask(src.kind === 'file'
-        ? 'delete the plain-text file ' + fwd(src.where) + ' now? [Y/n]'
-        : 'remove ' + src.where + ' from your user environment? [Y/n]', 'y'));
-      if (remove && src.kind === 'file') { fs.unlinkSync(src.where); say('ok', 'deleted ' + fwd(src.where)); }
-      else if (remove) { keyModule.removeUserEnv(src.where); say('ok', 'removed user environment variable ' + src.where); }
-      else say('warn', 'the plain copy in ' + label + ' still exists — delete it when you are ready');
+      say('ok', 'API key    ' + config.maskKey(src.key) + ' found in ' + label + ' and saved encrypted');
+      say('note', 'the plain copy still exists — remove it with `memo key import ' +
+        (src.kind === 'file' ? '--file "' + src.where + '"' : '--env ' + src.where) + ' --remove-source`');
       return true;
     }
     if (!interactive) {
@@ -139,9 +140,21 @@ async function setupKey(cfg, argv, ask, interactive) {
       return false;
     }
   }
-  const url = config.PRESETS[cfg.provider].keyUrl;
-  if (url) process.stdout.write('\nGet a key at ' + url + '\n');
+  const preset = config.PRESETS[cfg.provider];
   ask.close();
+  if (!argv.includes('--terminal-key')) {
+    process.stdout.write('\n  Opening the key page in your browser — paste your key there.\n');
+    const accepted = await require('./ui/keypage').collectKey({
+      provider: cfg.provider,
+      label: preset.label.replace(/ \(.*$/, ''),
+      keyUrl: preset.keyUrl,
+      onUrl: (url) => process.stdout.write('  If it did not open, go to ' + url + '\n'),
+      submit: (key) => submitKey(cfg, key, state)
+    });
+    if (accepted) return true;
+    say('warn', 'browser step did not finish — falling back to the terminal');
+  }
+  if (preset.keyUrl) process.stdout.write('\nGet a key at ' + preset.keyUrl + '\n');
   for (let attempt = 0; attempt < 3; attempt++) {
     let key = '';
     try {
@@ -151,16 +164,29 @@ async function setupKey(cfg, argv, ask, interactive) {
       return false;
     }
     if (!key) { say('warn', 'nothing entered — run `memo key set` later'); return false; }
-    try {
-      keyModule.save(cfg.provider, key);
-      say('ok', 'key ' + config.maskKey(secrets.validKey(key)) + ' stored (' +
-        (secrets.backend() === 'dpapi' ? 'encrypted for your Windows account' : 'file readable only by you') + ')');
-      return true;
-    } catch (err) {
-      say('fail', err.message);
-    }
+    const res = await submitKey(cfg, key, state);
+    if (res.ok) return true;
+    say('fail', res.error);
   }
   return false;
+}
+
+// Saves a pasted key and proves it with one tiny real request; a rejected key is not kept.
+async function submitKey(cfg, key, state) {
+  const valid = secrets.validKey(key);
+  if (!valid) return { ok: false, error: 'That does not look like an API key (8–512 characters, no spaces).' };
+  require('./key').save(cfg.provider, valid);
+  secrets.clearCache();
+  const res = await require('./status').ping(config.load());
+  if (!res.ok && res.kind === 'auth') {
+    secrets.remove(cfg.provider);
+    return { ok: false, error: 'The provider rejected that key. Check you copied all of it.' };
+  }
+  if (res.ok) state.live = true;
+  say('ok', 'API key    ' + config.maskKey(valid) + ' saved (' +
+    (secrets.backend() === 'dpapi' ? 'encrypted for your Windows account' : 'file readable only by you') + ')');
+  if (res.ok) say('ok', 'AI test    ' + res.detail);
+  return { ok: true };
 }
 
 function readKeyFile(file) {
@@ -206,8 +232,10 @@ async function install(argv = []) {
   const interactive = !argv.includes('--yes') && Boolean(process.stdin.isTTY);
   const ask = makeAsk();
   const result = { config: false, key: false, hooks: false, schedule: false, live: null };
+  const state = { live: false };
   try {
-    process.stdout.write('MEMO setup — ' + (fs.existsSync(config.configPath()) ? 'existing install found, keeping your settings' : 'first run') + '\n');
+    process.stdout.write('\n  MEMO — memory for your AI coding agents\n  ' + '─'.repeat(40) + '\n  ' +
+      (fs.existsSync(config.configPath()) ? 'Existing install found; your settings are kept.' : 'Setting up with sensible defaults — nothing to configure.') + '\n\n');
     fs.mkdirSync(memoHome(), { recursive: true });
     fs.mkdirSync(logsDir(), { recursive: true });
     const existed = fs.existsSync(config.configPath());
@@ -222,7 +250,7 @@ async function install(argv = []) {
     else say('note', shim.detail);
 
     cfg = await chooseProvider(cfg, argv, ask, interactive);
-    result.key = await setupKey(cfg, argv, ask, interactive);
+    result.key = await setupKey(cfg, argv, ask, interactive, state);
     cfg = config.load();
 
     process.stdout.write('\n');
@@ -237,14 +265,15 @@ async function install(argv = []) {
     if (!argv.includes('--no-schedule')) result.schedule = installSchedule(cfg);
     else result.schedule = true;
 
-    if (result.key && !argv.includes('--skip-live')) result.live = await liveTest(cfg, ask, interactive);
+    if (result.key && state.live) result.live = true;
+    else if (result.key && !argv.includes('--skip-live')) result.live = await liveTest(cfg, ask, interactive);
 
-    process.stdout.write('\n' + PRIVACY.join('\n') + '\n\n');
+    process.stdout.write('\n' + (argv.includes('--privacy') ? PRIVACY : PRIVACY_SHORT).join('\n') + '\n\n');
     const ok = result.config && result.key && result.hooks && result.schedule && result.live !== false;
     if (ok) {
-      say('done', 'MEMO is installed.');
-      process.stdout.write('         Next: open a terminal in a project and run  memo init\n' +
-        '         Then just use Claude Code there. Check anytime with  memo status\n');
+      say('done', 'MEMO is ready.');
+      process.stdout.write('\n  Next:  open a terminal in any Git project and run   memo init\n' +
+        '         then use Claude Code as usual. Check anytime with   memo status\n');
     } else {
       say('todo', 'MEMO is installed but not fully working yet:');
       if (!result.key) process.stdout.write('         - add your API key:        memo key set\n');

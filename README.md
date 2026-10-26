@@ -10,7 +10,11 @@ Zero-dependency Node.js CLI that gives a Git repo a persistent memory for AI cod
 ```
 node bin/memo.js install
 ```
-On Windows, `scripts/windows/install_memo.bat` registers the background task.
+On Windows, double-click `setup_memo.bat` instead. Either way there is nothing to configure:
+MEMO uses OpenRouter with its default model, opens a one-field page in your browser for the
+API key (stored encrypted, checked with a real test call), then installs the Claude Code hooks
+and the background task. Want another provider or model? `memo install --choose`. No browser?
+`memo install --terminal-key`.
 
 ## Usage
 ```

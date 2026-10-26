@@ -24,6 +24,7 @@ Background work
   memo pause | memo resume          stop/start API processing (capture keeps working)
   memo repair                       reapply hooks and the scheduled task, keep everything else
   memo uninstall [--remove-key]     remove task and hooks; memory data is kept
+  memo reset                        wipe MEMO from this machine (task, hooks, command, key, ~/.memo) to test a fresh install
 
 Your memory
   memo context                      the project state a new Claude Code session receives
@@ -135,6 +136,9 @@ async function main(argv) {
       break;
     case 'uninstall':
       await require('../src/install.js').uninstall(argv.slice(3));
+      break;
+    case 'reset':
+      await require('../src/install.js').uninstall(['--yes', '--remove-key', '--purge-home', '--confirm', 'DELETE-MEMO-HOME']);
       break;
     case 'key':
       await require('../src/key.js').command(argv.slice(3));
