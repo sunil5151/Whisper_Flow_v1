@@ -218,6 +218,43 @@ test('openai: baseUrl points the same wire format at a compatible host', async (
     'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
 });
 
+test('openrouter is the default: GLM 5.3 Flash, max_tokens, strict schema, hidden reasoning', async () => {
+  const fetchImpl = fakeFetch([reply(200, {
+    id: 'gen-1',
+    model: 'z-ai/glm-5.3-flash',
+    choices: [{ message: { role: 'assistant', content: '{"items":[]}' } }],
+    usage: { prompt_tokens: 50, completion_tokens: 5 }
+  })]);
+  const { impl } = opts(fetchImpl);
+  const schema = { name: 'records', schema: { type: 'object', properties: {}, additionalProperties: false } };
+  const out = await provider.create(cfg(), impl).complete({ system: 's', user: 'u', maxTokens: 700, schema });
+
+  const call = fetchImpl.calls[0];
+  assert.equal(config.defaults().provider, 'openrouter');
+  assert.equal(call.url, 'https://openrouter.ai/api/v1/chat/completions');
+  assert.equal(call.body.model, 'z-ai/glm-5.3-flash');
+  assert.equal(call.body.max_tokens, 700);
+  assert.equal(call.body.max_completion_tokens, undefined);
+  assert.equal(call.body.response_format.type, 'json_schema');
+  assert.deepEqual(call.body.reasoning, { effort: 'low', exclude: true });
+  assert.ok(config.priceFor(config.defaults(), 'z-ai/glm-5.3-flash'));
+  assert.equal(out.text, '{"items":[]}');
+});
+
+test('openrouter key is read from OPEN_ROUTER_API_KEY or OPENROUTER_API_KEY', (t) => {
+  const saved = { a: process.env.OPEN_ROUTER_API_KEY, b: process.env.OPENROUTER_API_KEY };
+  t.after(() => {
+    for (const [k, v] of [['OPEN_ROUTER_API_KEY', saved.a], ['OPENROUTER_API_KEY', saved.b]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+  delete process.env.OPEN_ROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = 'sk-or-test-b';
+  assert.equal(config.apiKey(cfg()), 'sk-or-test-b');
+  process.env.OPEN_ROUTER_API_KEY = 'sk-or-test-a';
+  assert.equal(config.apiKey(cfg()), 'sk-or-test-a');
+});
+
 test('openai: insufficient_quota is quota, 429 retries', async () => {
   const q = fakeFetch([reply(429, { error: { message: 'You exceeded your current quota', type: 'insufficient_quota' } })]);
   await assert.rejects(

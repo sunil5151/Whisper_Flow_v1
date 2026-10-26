@@ -3,7 +3,7 @@
 // API keys, stored once per machine and never inside a repo.
 //
 // Lookup order: the env var named by config.apiKeyEnv → the provider's usual env var
-// (GROQ_API_KEY, …) → the stored credential in ~/.memo/secrets/<provider>.*
+// (OPEN_ROUTER_API_KEY, GROQ_API_KEY, …) → the stored credential in ~/.memo/secrets/<provider>.*
 //
 // Windows: the key is encrypted with DPAPI for the current Windows user
 // (ConvertFrom-SecureString), so the file is useless on another account or machine.

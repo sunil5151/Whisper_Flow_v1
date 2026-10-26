@@ -60,10 +60,17 @@ function scrubPaths(text, ctx) {
   let out = text;
   const swap = (base, label) => {
     if (!base) return;
-    const variants = new Set([base, base.replace(/\//g, '\\'), base.replace(/\\/g, '/')]);
+    const fwd = base.replace(/\\/g, '/').replace(/\/+$/, '');
+    const variants = new Set([base, base.replace(/\//g, '\\'), fwd, fwd.replace(/\//g, '\\\\')]);
+    const win = isWinAbs(base);
+    if (win) {
+      // Git Bash (/c/Users/…) and file URIs (file:///c%3A/Users/…) spell the same path differently.
+      variants.add('/' + fwd[0] + fwd.slice(2));
+      variants.add(fwd[0] + '%3A' + fwd.slice(2));
+    }
     for (const v of variants) {
       if (v.length < 4) continue;
-      const re = new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), isWinAbs(v) ? 'gi' : 'g');
+      const re = new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), win ? 'gi' : 'g');
       out = out.replace(re, label);
     }
   };
@@ -226,4 +233,4 @@ function normalize(line, ctx) {
   return out;
 }
 
-module.exports = { normalize, relPath, LIMITS };
+module.exports = { normalize, relPath, denied, finish, cmpKey, LIMITS };

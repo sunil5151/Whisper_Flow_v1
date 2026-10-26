@@ -18,6 +18,10 @@ if (!process.env.MEMO_TEST_ISOLATED) {
   process.env.MEMO_SECRET_BACKEND = 'file';
   process.env.MEMO_SHIM_DIR = path.join(base, 'shim');
   process.env.MEMO_NO_PATH_EDIT = '1';
-  for (const name of ['MEMO_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'MEMO_MOCK_LLM']) delete process.env[name];
+  process.env.MEMO_AUTO_CYCLE = '0';
+  process.env.COPILOT_HOME = path.join(base, 'copilot');
+  process.env.ANTIGRAVITY_HOME = path.join(base, 'antigravity');
+  for (const name of ['MEMO_API_KEY', 'GROQ_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'OPEN_ROUTER_API_KEY',
+    'OPENROUTER_API_KEY', 'MEMO_MOCK_LLM']) delete process.env[name];
   process.on('exit', () => { try { fs.rmSync(base, { recursive: true, force: true }); } catch (_) { /* best effort */ } });
 }

@@ -92,7 +92,8 @@ function report(root) {
   const loaded = stateReport.loadState(root);
   return {
     state: stateReport.writeState(root, { state: loaded }),
-    tasks: tasksReport.writeTasks(root, { loaded })
+    tasks: tasksReport.writeTasks(root, { loaded }),
+    agents: require('./report/agents').refresh(root)
   };
 }
 
@@ -114,6 +115,7 @@ function command() {
   const res = report(root);
   console.log(`${res.state ? 'written' : 'unchanged'}  .memory/PROJECT_STATE.md`);
   console.log(`${res.tasks ? 'written' : 'unchanged'}  .memory/TASKS.md`);
+  for (const rel of res.agents) console.log(`written  ${rel}`);
 }
 
 module.exports = { buildBrief, parseEntries, report, command };

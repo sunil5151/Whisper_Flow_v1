@@ -8,7 +8,14 @@ and sends batches of captured events to one API provider you configure.
 
 Capture only happens in a repo where you ran `memo init` (the repo is then listed in
 `~/.memo/repos.json`). Claude Code calls `memo capture` on SessionStart, Stop, PreCompact
-and SessionEnd; MEMO reads the new bytes of that session's transcript file.
+and SessionEnd; MEMO reads the new bytes of that session's transcript file. GitHub Copilot
+agent sessions (`~/.copilot/session-state/<sid>/events.jsonl`, Copilot CLI and the VS Code
+agent host) are read by the 15-minute sweep when their `git_root` is the repo; the same
+limits apply, file contents from `view` are dropped, and Copilot's encrypted reasoning blobs
+are never read (`src/capture/copilot.js`). Gemini conversations in Google Antigravity
+(`~/.gemini/antigravity/brain/<id>/.system_generated/logs/transcript.jsonl`) are read the same
+way once one of their tool calls uses a path inside the repo; thinking and file-read results are
+dropped (`src/capture/gemini.js`).
 
 Kept (`src/capture/claude.js`, limits from the plan §6.1):
 

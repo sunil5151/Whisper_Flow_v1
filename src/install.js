@@ -1,7 +1,7 @@
 'use strict';
 
 // `memo install` — the one-time machine setup run by setup_memo.bat (safe to rerun = repair).
-//   1 config          ~/.memo/config.json (kept if present; Groq by default)
+//   1 config          ~/.memo/config.json (kept if present; OpenRouter by default)
 //   2 provider/model  asked once, Enter keeps the current value
 //   3 API key         stored encrypted (src/secrets.js); old plain-text keys are offered for migration
 //   4 Claude hooks    ~/.claude/settings.json (backed up, idempotent)

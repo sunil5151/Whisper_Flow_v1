@@ -5,7 +5,7 @@ const HELP = `MEMO — persistent project memory for AI coding sessions
 
 Start here
   memo install                      one-time machine setup (setup_memo.bat runs this; rerun = repair)
-       [--provider groq|anthropic|openai|mock] [--model <id>] [--yes] [--skip-live]
+       [--provider openrouter|groq|anthropic|openai|mock] [--model <id>] [--yes] [--skip-live]
   memo init                         activate MEMO in the current Git repo
   memo status                       is it working? capture, pending work, API calls, limits
   memo doctor [--live]              check every piece; --live sends one tiny real request

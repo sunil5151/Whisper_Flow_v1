@@ -122,3 +122,21 @@ test('busy repo and autoCommit:false do nothing', { skip }, (t) => {
   assert.equal(commitMemory(ctx.root, { cfg: CFG }).status, 'git_busy');
   assert.equal(ctx.git('log', '--format=%s'), 'base');
 });
+
+test('an agent file is committed only when its change is inside the memo block', { skip }, (t) => {
+  const ctx = setup(t);
+  const { git, write } = ctx;
+  const block = (s) => '<!-- memo:start -->\n' + s + '\n<!-- memo:end -->\n';
+  write('AGENTS.md', '# Rules\n\n' + block('old'));
+  write('GEMINI.md', '# Gemini\n\n' + block('old'));
+  seedBase(ctx);
+
+  write('AGENTS.md', '# Rules\n\n' + block('new snapshot'));
+  write('GEMINI.md', '# Gemini, edited by the user\n\n' + block('new snapshot'));
+  write('.memory/x', 'x\n');
+  const res = commitMemory(ctx.root, { cfg: CFG });
+  assert.equal(res.status, 'committed');
+  const committed = git('show', '--name-only', '--format=', 'HEAD').split('\n').sort();
+  assert.deepEqual(committed, ['.memory/x', 'AGENTS.md']);
+  assert.match(git('status', '--porcelain'), /GEMINI\.md/);
+});

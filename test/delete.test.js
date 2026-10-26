@@ -154,7 +154,10 @@ test('deleting a session removes its files, keeps the other, strips mixed eviden
   const files = execFileSync('git', ['show', '--name-only', '--format=%s', 'HEAD'],
     { cwd: ctx.root, encoding: 'utf8', windowsHide: true }).trim().split('\n');
   assert.match(files[0], /^memo: remove captured session data for session aaaaaaaa$/);
-  for (const f of files.slice(1).filter(Boolean)) assert.match(f, /^\.memory\//);
+  for (const f of files.slice(1).filter(Boolean)) assert.match(f, /^(\.memory\/|AGENTS\.md$|GEMINI\.md$|\.github\/copilot-instructions\.md$)/);
+  for (const rel of ['AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md']) {
+    assert.equal(fs.readFileSync(path.join(ctx.root, rel), 'utf8').includes(SID_A.slice(0, 8)), false, rel);
+  }
 });
 
 test('without --with-derived the derived record is kept but loses its evidence', { skip: SKIP }, (t) => {

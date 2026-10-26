@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 'use strict';
 
-// Incremental codebase summary with an OpenAI model.
+// Incremental codebase summary via OpenRouter.
 //
 //   node scripts/codebase-summary.js          first run: full codebase; later runs: git diff + previous summary
 //   node scripts/codebase-summary.js --full   force a full rebuild
 //
-// Key: OPENAI_API_KEY, else line 2 of groq_key.md (gitignored). Model: MEMO_SUMMARY_MODEL or gpt-6-luna.
+// Key: OPEN_ROUTER_API_KEY / OPENROUTER_API_KEY, else the OPEN_ROUTER_API_KEY line of groq_key.md (gitignored).
+// Model: MEMO_SUMMARY_MODEL or z-ai/glm-5.3-flash.
 // Every file and diff is passed through src/redact.js before it is sent.
 
 const fs = require('fs');
@@ -18,7 +19,7 @@ const { redact, redactPath } = require('../src/redact');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'codebase_summary.md');
 const KEY_FILE = path.join(ROOT, 'groq_key.md');
-const MODEL = process.env.MEMO_SUMMARY_MODEL || 'gpt-6-luna';
+const MODEL = process.env.MEMO_SUMMARY_MODEL || 'z-ai/glm-5.3-flash';
 const MARKER = /^<!-- codebase-summary base=([0-9a-f]{40}) model=(\S+) at=(\S+) -->$/m;
 
 // Session transcripts, patches and personal notes are noise or private; key files never leave the machine.
@@ -32,8 +33,9 @@ function git(args) {
 }
 
 function readKey() {
-  if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY.trim();
-  const line = fs.readFileSync(KEY_FILE, 'utf8').split(/\r?\n/)[1] || '';
+  const env = process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
+  if (env) return env.trim();
+  const line = fs.readFileSync(KEY_FILE, 'utf8').split(/\r?\n/).find((l) => /^\s*OPEN_ROUTER_API_KEY\s*=/.test(l)) || '';
   return line.slice(line.indexOf('=') + 1).trim();
 }
 
@@ -105,7 +107,7 @@ async function main() {
     console.log('mode: incremental since ' + m[1].slice(0, 7) + ' — ' + prompt.changed + ' changed files, ' + prompt.user.length + ' chars');
   }
 
-  const client = create({ provider: 'openai', model: MODEL }, { apiKey: readKey(), timeoutMs: 600000 });
+  const client = create({ provider: 'openrouter', model: MODEL }, { apiKey: readKey(), timeoutMs: 600000 });
   const res = await client.complete({ system: prompt.system, user: prompt.user, maxTokens: 16000, json: false });
   if (!res.text) throw new Error('empty reply from ' + res.model);
 

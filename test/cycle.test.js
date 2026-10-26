@@ -109,7 +109,7 @@ test('a cycle with new events processes, reports and commits only .memory', { sk
   const files = execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'],
     { cwd: ctx.root, encoding: 'utf8', windowsHide: true }).trim().split('\n');
   assert.ok(files.length > 0);
-  for (const f of files) assert.match(f, /^\.memory\//);
+  for (const f of files) assert.match(f, /^(\.memory\/|AGENTS\.md$|GEMINI\.md$|\.github\/copilot-instructions\.md$)/);
   assert.ok(fs.existsSync(path.join(ctx.root, '.memory', 'PROJECT_STATE.md')));
 
   const status = JSON.parse(fs.readFileSync(path.join(ctx.home, 'status.json'), 'utf8'));

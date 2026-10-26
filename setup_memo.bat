@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 title MEMO setup
 rem MEMO V1 installer for Windows 10/11. Safe to rerun: it repairs and keeps your settings.
 rem MEMO itself needs no admin rights. Installing Git or Node.js may show a Windows permission prompt.
-rem Usage: setup_memo.bat [--provider groq^|anthropic^|openai^|mock] [--model <id>] [--yes] [--skip-live]
+rem Usage: setup_memo.bat [--provider openrouter^|groq^|anthropic^|openai^|mock] [--model <id>] [--yes] [--skip-live]
 
 set "REPO_URL=https://github.com/sunil5151/Whisper_Flow_v1.git"
 if defined MEMO_REPO_URL set "REPO_URL=%MEMO_REPO_URL%"

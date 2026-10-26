@@ -7,6 +7,7 @@ const { memoryDir, memoBin, sessionsDir } = require('./paths');
 const repos = require('./repos');
 const records = require('./store/records');
 const stateReport = require('./report/state');
+const agentFiles = require('./report/agents');
 const { hasLegacy } = require('./migrate');
 const { writeFileAtomic } = require('./util');
 
@@ -14,8 +15,6 @@ const MEMORY_FILES = {
   'progress.md': '# Progress\n\n(auto-written by the post-commit hook)\n'
 };
 
-const OLD_AGENTS_LINE = 'Read .memory/BRIEF.md before starting.';
-const BLOCK_RE = /<!-- memo:start -->[\s\S]*?<!-- memo:end -->\n?/;
 const GITIGNORE_LINE = '.memory/BRIEF.md';
 const HOOK_MARK = '# memo-hook';
 
@@ -49,14 +48,27 @@ function writeIfChanged(filePath, content) {
   return existing === null ? 'created' : 'updated';
 }
 
-// AGENTS.md gets one marked block: replaced on rerun, never duplicated.
-function agentsContent(existing) {
-  const block = template('AGENTS.block.md');
-  if (existing === null) return block;
-  const text = existing.replace(/\r\n?/g, '\n');
-  if (BLOCK_RE.test(text)) return text.replace(BLOCK_RE, block);
-  const lines = text.split('\n').filter((l) => l !== OLD_AGENTS_LINE).join('\n').replace(/\n*$/, '');
-  return (lines ? lines + '\n\n' : '') + block;
+// VS Code, Antigravity and other VS Code-based editors run this task when the folder opens.
+function installFolderOpenTask(root, notes) {
+  const file = path.join(root, '.vscode', 'tasks.json');
+  const task = JSON.parse(template('vscode-tasks.json')).tasks[0];
+  if (!fs.existsSync(file)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, template('vscode-tasks.json'), 'utf8');
+    return 'created';
+  }
+  const text = fs.readFileSync(file, 'utf8');
+  if (text.includes(task.label)) return 'skipped';
+  let parsed;
+  try { parsed = JSON.parse(text); } catch (_) { parsed = null; }
+  if (!parsed || typeof parsed !== 'object' || (parsed.tasks && !Array.isArray(parsed.tasks))) {
+    notes.push('hint: .vscode/tasks.json has comments or an unusual shape — add the "' + task.label +
+      '" task from templates/vscode-tasks.json by hand to sync conversations when the folder opens');
+    return 'skipped';
+  }
+  parsed.tasks = [...(parsed.tasks || []), task];
+  fs.writeFileSync(file, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
+  return 'updated';
 }
 
 function hookContent() {
@@ -98,10 +110,6 @@ function init() {
 
   report.push([writeIfChanged(path.join(memoryDir(root), 'README.md'), template('memory-README.md')), '.memory/README.md']);
 
-  const agentsPath = path.join(root, 'AGENTS.md');
-  const agentsOld = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : null;
-  report.push([writeIfChanged(agentsPath, agentsContent(agentsOld)), 'AGENTS.md']);
-
   const claudePath = path.join(root, 'CLAUDE.md');
   if (!fs.existsSync(claudePath)) {
     fs.writeFileSync(claudePath, template('CLAUDE.md'), 'utf8');
@@ -117,10 +125,15 @@ function init() {
 
   report.push([installHook(root), 'post-commit hook']);
 
+  report.push([installFolderOpenTask(root, notes), '.vscode/tasks.json (sync on folder open)']);
+
   const sDir = sessionsDir(root);
   report.push([fs.existsSync(sDir) ? 'skipped' : 'created', '.memory/sessions/']);
   fs.mkdirSync(sDir, { recursive: true });
   records.ensureDir(root);
+
+  // AGENTS.md, Copilot and Gemini instruction files: one marked block each, replaced on rerun.
+  report.push(...agentFiles.install(root));
 
   const statePath = stateReport.statePath(root);
   if (fs.existsSync(statePath)) report.push(['skipped', '.memory/PROJECT_STATE.md']);
