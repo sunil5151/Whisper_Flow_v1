@@ -42,7 +42,7 @@ MEMO is a zero-dependency Node.js CLI that gives a Git repo a persistent memory 
 
 ### Snapshot (sessions processed up to 2026-10-26)
 Recent sessions:
-- 2026-10-26 ae3e137b: The user completed `claude setup-token` after initially missing the printed token; `gh secret list` confirmed CLAUDE_CODE_OAUTH_TOKEN was set on sunil5151/Whis… → .memory/sessions/2026/10/26/ae3e137b-a28d-47c5-83d5-3704cc887f7d.md
+- 2026-10-26 ae3e137b: User instructed merging main and push-fix together, preserving the side with more meaningful diff. After several aborted branch switches (memo hook/SpecStory k… → .memory/sessions/2026/10/26/ae3e137b-a28d-47c5-83d5-3704cc887f7d.md
 - 2026-10-26 ad1fcd99: The user attempted to set up the Claude GitHub integration: the /install-github-app command was run (both runs cancelled), and they tried `claude setup-token`,… → .memory/sessions/2026/10/26/ad1fcd99-1266-4264-8533-fa2e434d33ac.md
 - 2026-10-26 b01fd773: This session's events contain only a single system event recording that the /install-github-app command was invoked at 2026-10-26T14:10:32 local time. No tool … → .memory/sessions/2026/10/26/b01fd773-f369-4de9-9196-d4d02fc8311e.md
 - 2026-10-26 769ddbc2: The session contains only a single system event: the /install-github-app command was invoked at 2026-10-26 09:20:50 (+05:30) in whisper_flow_hackathon. No tool… → .memory/sessions/2026/10/26/769ddbc2-f7e4-4c6d-a22b-5d23fe02586c.md
@@ -54,13 +54,13 @@ Intent:
 Open tasks:
 - Push README work to origin/main — blocked, high (T-3e47280d)
 - Commit Gemini capture work — in_progress, high (T-d193875f)
-- Commit and push claude.yml workflow with main-only rule — open, high (T-9652e112)
 - Verify OpenRouter switch end-to-end — open, normal (T-6172295c)
+- Stale 'open' records (Groq 401 error, Anthropic credit error) appear in the snapshot and should be removed via `memo note` or `memo clear --record`. — open, normal (T-97c2cd22)
 Open errors:
+- A combined 'git push; git branch -d push-fix memo-v1-installer; git stash drop x3' command was denied by the Claude Code auto-mode classifier as [Irreversible Local Destruction]; push was retried sep… — observed (E-2bf51a10)
+- A 'git checkout -f main' attempt was denied by the Claude Code auto-mode classifier as [Irreversible Local Destruction]; the assistant abandoned force checkout and used normal commit-then-checkout in… — observed (E-6aae7593)
 - Cycle 'capture_gap' status root-caused: sweep logs show 'transcript_missing' entries for old whisper_flow_hackathon sessions whose transcripts were deleted (12 of 40 sweeps); capture_gap is a display… — reopened (E-4e73258b)
 - get_session_context returns empty transcripts (transcript: [], hasMoreHistory: false) for archived whisper_flow_hackathon sessions of 24 Oct ('purane conversation ka pata') and 25 Oct ('purane conver… — investigating (E-57c2fad3)
-- Groq API returns 401 'Invalid API Key' on every background cycle, leaving ~970 events unprocessed and .memory/PROJECT_STATE.md stale since 2026-10-23 23:52 — a root cause of Copilot/other agents seei… — observed (E-ddfc5755)
-- git push origin main rejected (non-fast-forward): origin/main had 7 newer commits (analysis workflow, cost_tracker.py, analyze_repo.py, requirements need). Later push attempts blocked: rebase conflic… — observed (E-9b1f53c8)
 Active decisions:
 - Capture routing in src/capture/capture.js was refactored to be common across agents so the Gemini adapter (src/capture/gemini.js) plugs in alongside the Copilot adapter. (D-e448c8a1)
 - Capture is no longer Claude-only: src/capture/capture.js now routes per-agent and a Copilot adapter (src/capture/copilot.js) reads ~/.copilot/session-state/<sid>/events.jsonl transcripts, normalizing… (D-572833e3)

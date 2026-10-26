@@ -48,3 +48,7 @@ Files: .specstory/history/2026-10-26_09-03-03Z-dekh-maine-git-cli.md (+268 -0)
 ## 2026-10-23 19:48 · commit a6c9dea
 Add README and package.json metadata
 Files: README.md (+38 -1), package.json (+12 -0)
+
+## 2026-10-26 14:53 · commit 86e005e
+Merge push-fix into main: Copilot/Gemini capture, agent context, installer plus README and package metadata
+Files: (merge or empty commit)
