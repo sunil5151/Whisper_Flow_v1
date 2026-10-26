@@ -140,6 +140,6 @@
     "events": 244,
     "processedThrough": 244,
     "summary": "Investigated why Copilot couldn't access past-conversation context: Copilot only queried its own session-history tools (list_sessions/get_session_context), which returned empty transcripts for 24/25 Oct sessions, and it never opened .memory files despite receiving the memo block. Fixed by adding a s",
-    "status": "active"
+    "status": "ended"
   }
 ]
