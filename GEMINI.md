@@ -7,20 +7,20 @@
 
 ### Snapshot (sessions processed up to 2026-10-26)
 Recent sessions:
-- 2026-10-26 ae3e137b: User reported that after installing git CLI, Claude still wasn't running in GitHub Actions. Diagnosis: gh 2.103.2 and git 2.49.0 are installed and gh is authen… → .memory/sessions/2026/10/26/ae3e137b-a28d-47c5-83d5-3704cc887f7d.md
+- 2026-10-26 ae3e137b: The user completed `claude setup-token` after initially missing the printed token; `gh secret list` confirmed CLAUDE_CODE_OAUTH_TOKEN was set on sunil5151/Whis… → .memory/sessions/2026/10/26/ae3e137b-a28d-47c5-83d5-3704cc887f7d.md
 - 2026-10-26 ad1fcd99: The user attempted to set up the Claude GitHub integration: the /install-github-app command was run (both runs cancelled), and they tried `claude setup-token`,… → .memory/sessions/2026/10/26/ad1fcd99-1266-4264-8533-fa2e434d33ac.md
 - 2026-10-26 b01fd773: This session's events contain only a single system event recording that the /install-github-app command was invoked at 2026-10-26T14:10:32 local time. No tool … → .memory/sessions/2026/10/26/b01fd773-f369-4de9-9196-d4d02fc8311e.md
 - 2026-10-26 769ddbc2: The session contains only a single system event: the /install-github-app command was invoked at 2026-10-26 09:20:50 (+05:30) in whisper_flow_hackathon. No tool… → .memory/sessions/2026/10/26/769ddbc2-f7e4-4c6d-a22b-5d23fe02586c.md
 - 2026-10-26 0e5c3a78 (gemini): The user inquired about the granularity and scope of the current and past conversation history within MEMO. The system confirmed that all conversations are sav… → .memory/sessions/2026/10/26/0e5c3a78-e60c-4730-aedc-ea8095456a26.md
 Intent:
+- User wants all work done on the main branch only: commit the workflow to main and add a standing rule (in AGENTS.md) that Claude must never create other branches or work on them. (I-41c0ecf6)
 - User wants the current Antigravity-platform conversation (and future ones) to be automatically saved into MEMO; they asked how to achieve this since MEMO's capture currently does not read the Antigra… (I-7aac1970)
 - User asked to do the same for Gemini as was done for Copilot: when this repo opens, save all conversations, organise them, and report back. (I-87190b38)
-- User wants every AI agent (Copilot, Gemini, Cursor, Codex) to have the same project context as Claude Code; provider switched to OpenRouter GLM 5.3 Flash and memo init/report now write inline context… (I-fbc13eb5)
 Open tasks:
 - Push README work to origin/main — blocked, high (T-3e47280d)
 - Commit Gemini capture work — in_progress, high (T-d193875f)
+- Commit and push claude.yml workflow with main-only rule — open, high (T-9652e112)
 - Verify OpenRouter switch end-to-end — open, normal (T-6172295c)
-- Stale 'open' records (Groq 401 error, Anthropic credit error) appear in the snapshot and should be removed via `memo note` or `memo clear --record`. — open, normal (T-97c2cd22)
 Open errors:
 - Cycle 'capture_gap' status root-caused: sweep logs show 'transcript_missing' entries for old whisper_flow_hackathon sessions whose transcripts were deleted (12 of 40 sweeps); capture_gap is a display… — reopened (E-4e73258b)
 - get_session_context returns empty transcripts (transcript: [], hasMoreHistory: false) for archived whisper_flow_hackathon sessions of 24 Oct ('purane conversation ka pata') and 25 Oct ('purane conver… — investigating (E-57c2fad3)
