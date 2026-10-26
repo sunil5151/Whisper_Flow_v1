@@ -53,3 +53,7 @@ Files: .github/workflows/main.yml (+1 -1), .specstory/history/2026-10-23_14-14-0
 ## 2026-10-26 14:44 · commit b0455ca
 s014
 Files: .github/copilot-instructions.md (+34 -0), .github/workflows/claude.yml (+32 -0), .specstory/history/2026-10-24_10-57-50Z-dekh-repo-ko-dekh.md (+798 -0), .specstory/history/2026-10-24_11-20-52Z-simply-bata-ki-tujhe.md (+8739 -0), .specstory/history/2026-10-24_11-20-52Z.md (+23 -0), .specstory/history/2026-10-26_03-49-19Z.md (+43 -0), .specstory/history/2026-10-26_08-39-56Z.md (+23 -0), .specstory/history/2026-10-26_08-43-15Z-claude-setup-token.md (+81 -0), .specstory/history/2026-10-26_08-43-15Z.md (+43 -0), .specstory/history/2026-10-26_09-03-03Z-dekh-maine-git-cli.md (+207 -0), .vscode/tasks.json (+15 -0), AGENTS.md (+34 -15), CLAUDE.md (+0 -7), GEMINI.md (+34 -0), bin/memo.js (+1 -1), +30 more
+
+## 2026-10-26 14:51 · commit 2ed31be
+Add rule: work directly on main, no extra branches
+Files: AGENTS.md (+4 -3)
