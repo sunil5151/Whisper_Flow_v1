@@ -57,3 +57,7 @@ Files: .github/copilot-instructions.md (+34 -0), .github/workflows/claude.yml (+
 ## 2026-10-26 14:51 · commit 2ed31be
 Add rule: work directly on main, no extra branches
 Files: AGENTS.md (+4 -3)
+
+## 2026-10-26 14:51 · commit 8580861
+specstory: update history
+Files: .specstory/history/2026-10-26_09-03-03Z-dekh-maine-git-cli.md (+268 -0)
