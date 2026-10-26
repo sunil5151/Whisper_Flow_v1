@@ -136,11 +136,11 @@
     "agent": "claude-code",
     "date": "2026-10-24",
     "start": "2026-10-24T16:51:01.055+05:30",
-    "end": "2026-10-26T08:41:58.037+05:30",
-    "events": 377,
-    "processedThrough": 377,
-    "summary": "Following the Copilot adapter, the user asked for the same conversation capture for Gemini. Investigation found Gemini/Antigravity transcripts under ~/.gemini/antigravity/brain (one session matched this repo). A new Gemini capture adapter (src/capture/gemini.js) was written, capture.js routing made ",
-    "status": "active"
+    "end": "2026-10-26T08:43:54.033+05:30",
+    "events": 392,
+    "processedThrough": 392,
+    "summary": "The developer successfully implemented the Gemini capture adapter and verified its functionality via unit tests, resulting in 179/179 test passes. They subsequently updated documentation and agent-specific configuration files (AGENTS.md, GEMINI.md, copilot-instructions.md) to support automated conte",
+    "status": "ended"
   },
   {
     "sid": "0b21cd05-a0d3-4546-8f85-461c35a93cb3",
