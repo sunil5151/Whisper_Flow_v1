@@ -229,5 +229,16 @@
     "processedThrough": 7,
     "summary": "The user inquired if the system recalled previous conversations. The assistant successfully retrieved memory, summarizing past discussions regarding how MEMO stores historical conversations and the known technical gaps concerning the Antigravity capture adapter.",
     "status": "active"
+  },
+  {
+    "sid": "0e5c3a78-e60c-4730-aedc-ea8095456a26",
+    "agent": "gemini",
+    "date": "2026-10-26",
+    "start": "2026-10-26T08:50:29.000+05:30",
+    "end": "2026-10-26T08:53:12.000+05:30",
+    "events": 17,
+    "processedThrough": 17,
+    "summary": "The user inquired about the granularity and scope of the current and past conversation history within MEMO. The system confirmed that all conversations are saved with full line-by-line detail, including prompts and tool calls, within session logs (JSONL), in addition to structured summaries and atom",
+    "status": "active"
   }
 ]
