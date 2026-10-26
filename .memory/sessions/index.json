@@ -268,10 +268,10 @@
     "agent": "claude-code",
     "date": "2026-10-26",
     "start": "2026-10-26T14:13:37.268+05:30",
-    "end": "2026-10-26T14:13:37.268+05:30",
-    "events": 1,
-    "processedThrough": 1,
-    "summary": "A single system event (/install-github-app) was recorded on 2026-10-26 at 14:13; no user prompts, tool calls, or code changes occurred in this session.",
+    "end": "2026-10-26T14:25:43.441+05:30",
+    "events": 6,
+    "processedThrough": 6,
+    "summary": "The user attempted to set up the Claude GitHub integration: the /install-github-app command was run (both runs cancelled), and they tried `claude setup-token`, which requires interactive browser login and was moved to the background after timing out at 120s. No token was obtained and no workflow fil",
     "status": "active"
   }
 ]
