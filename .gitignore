@@ -11,3 +11,6 @@ key.txt
 .env
 .env.*
 *.dpapi
+
+# SpecStory auto-saved chats (MEMO keeps its own sessions)
+.specstory/

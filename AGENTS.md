@@ -12,7 +12,7 @@ MEMO is a zero-dependency Node.js CLI that gives a Git repo a persistent memory 
 
 ## Working rules
 1. Ask for confirmation before risky actions: `git push`, deleting files, force operations.
-2. Keep replies short and concise; report results, not narration.
+2. Keep replies short and concise, including explanations: a few lines, no long write-ups unless asked; report results, not narration.
 3. Do not add unnecessary comments, features or abstractions; prefer editing existing files.
 4. Review the diff and run `npm test` before proposing a commit.
 5. Never write secrets or absolute machine paths into tracked files.

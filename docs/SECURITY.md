@@ -64,7 +64,7 @@ Provider and model come from `~/.memo/config.json`. With `provider: "mock"` no n
 call happens at all. With `apiEnabled: false` or `memo pause`, no call happens either.
 
 Your provider's own retention and training policy applies to what you send — check it
-and record the link in `docs/PHASE0_FINDINGS.md` §6 before using a real key.
+and record the link in `archive/PHASE0_FINDINGS.md` §6 before using a real key.
 
 ## 4. Where data lives
 

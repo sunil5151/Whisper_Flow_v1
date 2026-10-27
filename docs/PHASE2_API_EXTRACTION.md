@@ -87,7 +87,7 @@ cat .memory/sessions/2026/10/21/<sid>.md
 memo process                   # expect "no_new_data" and no new usage line
 ```
 
-Then the real thing, once `docs/PHASE0_FINDINGS.md` §7 names a model:
+Then the real thing, once `archive/PHASE0_FINDINGS.md` §7 names a model:
 
 ```bash
 memo config set provider anthropic
@@ -113,7 +113,7 @@ MEMO_LIVE=1 node scripts/try-extract.js error-then-fix
 
 ## Open points
 
-- **Model id is a default, not a decision.** `docs/PHASE0_FINDINGS.md` §7 is still a template,
+- **Model id is a default, not a decision.** `archive/PHASE0_FINDINGS.md` §7 is still a template,
   so `src/config.js` defaults to `claude-haiku-5-5` (cheapest tier per plan §3 #6, $0.10/$0.50
   per 1M). Change it with `memo config set model <id>` once the spike is done.
 - **Provider request shapes are unverified against live docs.** No network call was allowed for
